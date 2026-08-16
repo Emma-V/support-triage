@@ -1,7 +1,7 @@
 # ---------------------------------------------------------------
 # .gitignore - support-triage
-# הרעיון: קוד, נוטבוקים ותיעוד נכנסים לגיט. דאטה, מודלים,
-# סביבות עבודה וזבל של מערכת ההפעלה - לא.
+# The idea: code, notebooks and documentation go into git. Data, models,
+# working environments and operating-system junk do not.
 # ---------------------------------------------------------------
 
 # ===== Python =====
@@ -16,7 +16,7 @@ dist/
 .eggs/
 pip-wheel-metadata/
 
-# סביבות וירטואליות
+# Virtual environments
 .venv/
 venv/
 env/
@@ -24,7 +24,7 @@ ENV/
 .conda/
 conda-env/
 
-# כלי בדיקה / לינטינג
+# Testing / linting tools
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
@@ -40,15 +40,16 @@ htmlcov/
 profile_default/
 ipython_config.py
 
-# ===== דאטה =====
-# לא מעלים דאטהסטים לגיט - רק את המבנה של התיקיות
-# (ה-README ב-data/ מסביר מאיפה להוריד את הדאטה)
-# אזהרה לעצמי (קלוד): אל תוסיפי כאן חריגה שמבטלת חסימה על תיקייה
-# (למשל "!data/processed/clean/") כדי "לשמור על מבנה התיקייה" - חריגה על
-# תיקייה מבטלת את הסינון לכל קובץ שיונח בתוכה אחר כך, לא רק לתיקייה עצמה.
-# לשמירת מבנה תיקיות ריקות משתמשים אך ורק ב-.gitkeep, שכבר פטור למטה.
-# אם צריך קובץ ספציפי בכל זאת (כמו split_manifest.json) - פוטרים אותו
-# בשמו המלא, לא בתיקייה שמכילה אותו.
+# ===== Data =====
+# Datasets are not committed to git - only the directory structure is.
+# (data/README.md explains where to download the data from.)
+# Warning to self (and to Claude): do not add an exception here that un-ignores
+# a whole directory (for example "!data/processed/clean/") in order to "keep the
+# folder structure" - a directory-level exception cancels the filter for every
+# file placed inside it afterwards, not just for the directory itself.
+# To preserve empty directories use .gitkeep only, which is already exempted below.
+# If a specific file really is needed (such as split_manifest.json), exempt it
+# by its full filename, not by the directory that contains it.
 data/raw/*
 data/processed/*
 data/interim/*
@@ -57,7 +58,7 @@ data/external/*
 !data/**/README.md
 !data/processed/split_manifest.json
 
-# פורמטים כבדים של דאטה, בכל מקום בפרויקט
+# Heavy data formats, anywhere in the project
 *.parquet
 *.feather
 *.arrow
@@ -73,13 +74,13 @@ data/external/*
 *.tar.gz
 *.tgz
 
-# ===== מודלים ופלטים כבדים =====
+# ===== Models and heavy outputs =====
 artifacts/*
 !artifacts/.gitkeep
-# שלושת קבצי החוזה (סעיף 6 ב-CLAUDE.md) חייבים דווקא כן להיות בגיט:
-# הם זעירים, והם מגדירים את סדר המחלקות שהמודל מחזיר. אם הם לא בריפו,
-# צ'קפוינט שמור מחזיר תשובות שגויות בלי שום שגיאה.
-# שוב - פטור בשם קובץ מלא, לא חריגה על התיקייה.
+# The three contract files (section 6 of CLAUDE.md) must specifically be in git:
+# they are tiny, and they define the class order the model returns. If they are
+# not in the repo, a saved checkpoint returns wrong answers without any error.
+# Again - exempt by full filename, not by a directory-level exception.
 !artifacts/labels.json
 !artifacts/intent2cat.json
 !artifacts/urgency_prior.json
@@ -94,7 +95,7 @@ artifacts/*
 *.safetensors
 *.model
 *.vec
-# embeddings / קאש של מודלים מאומנים מראש
+# Embeddings / cache of pretrained models
 .cache/
 cache/
 transformers_cache/
@@ -103,15 +104,15 @@ nltk_data/
 mlruns/
 wandb/
 
-# ===== תוצאות =====
-# results/ כן נשמר בגיט (גרפים ומטריקות קטנים = חלק מהתיעוד להגשה),
-# אבל בלי קבצים זמניים/ענקיים:
+# ===== Results =====
+# results/ IS kept in git (small figures and metrics = part of the documentation
+# for submission), but without temporary/huge files:
 results/**/*.tmp
 results/**/*.log
 logs/
 *.log
 
-# ===== סודות =====
+# ===== Secrets =====
 .env
 .env.*
 !.env.example
@@ -120,7 +121,7 @@ secrets.json
 *.pem
 credentials*.json
 
-# ===== עורכים ו-IDE =====
+# ===== Editors and IDEs =====
 .vscode/
 !.vscode/settings.json.example
 .idea/
@@ -130,8 +131,8 @@ credentials*.json
 .spyderproject
 .spyproject
 
-# ===== מערכת הפעלה / OneDrive =====
-# חשוב במיוחד כי הפרויקט יושב בתוך OneDrive
+# ===== Operating system / OneDrive =====
+# Particularly important because the project lives inside OneDrive
 desktop.ini
 Thumbs.db
 Thumbs.db:encryptable
@@ -140,12 +141,14 @@ $RECYCLE.BIN/
 .DS_Store
 ._*
 *.lnk
-# קבצי התנגשות סנכרון של OneDrive
+# OneDrive sync-conflict files.
+# The second pattern is the Hebrew-locale equivalent of " - Copy" and must stay
+# in Hebrew: it matches filenames Windows generates, not text we wrote.
 *-emma-pc.*
 * - Copy.*
 * - עותק.*
 
-# ===== שונות =====
+# ===== Miscellaneous =====
 *.bak
 *.tmp
 temp/
@@ -153,6 +156,6 @@ tmp/
 scratch/
 
 # ===== Claude Code =====
-# קובץ ההקשר של Claude Code - אישי, לא נכנס לגיט
+# Claude Code context file - personal, not committed to git
 CLAUDE.md
 .claude/
