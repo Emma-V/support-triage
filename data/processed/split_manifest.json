@@ -1,0 +1,86 @@
+{
+  "seed": 42,
+  "near_dup_threshold": 0.9,
+  "scheme": "70/15/15 stratified on intent, two-step",
+  "source": {
+    "hf_repo": "bitext/Bitext-customer-support-llm-chatbot-training-dataset",
+    "filename": "Bitext_Sample_Customer_Support_Training_Dataset_27K_responses-v11.csv",
+    "sha256": "6f81102b0100b97b8468eb04368033a23206bf1fde9d53500d5806ec1001a434"
+  },
+  "tfidf_params": {
+    "analyzer": "char_wb",
+    "ngram_range": [
+      3,
+      5
+    ],
+    "min_df": 2,
+    "sublinear_tf": true
+  },
+  "counts": {
+    "raw": 26872,
+    "after_whitespace": 26872,
+    "after_exact_duplicates": 24554,
+    "n_families": 14133,
+    "clean_total": 14133
+  },
+  "splits": {
+    "clean": {
+      "train": {
+        "n_rows": 9893,
+        "sha256": "6d674bcb7d8fd254705cf847ebeefae9e3f9e356f385bb3c5b365819de78d177"
+      },
+      "val": {
+        "n_rows": 2120,
+        "sha256": "cee4cf6f0118f9a8fa35946fc91babebd25a6273108dfea1c473ada89c053d81"
+      },
+      "test": {
+        "n_rows": 2120,
+        "sha256": "ea2a397c7d7eedcaee06d3e7cf13f179f5ac284fac720a3206ef776e253f2bb3"
+      }
+    },
+    "naive": {
+      "train": {
+        "n_rows": 17187,
+        "sha256": "0354eee23ff3b99681ffecf4eefe46d5037953ecafa779a28380372340f31058"
+      },
+      "val": {
+        "n_rows": 3683,
+        "sha256": "eb72846536a895c92de5ec3eb9e24af0669c4b7c16dc09febd61c2fac35d424d"
+      },
+      "test": {
+        "n_rows": 3684,
+        "sha256": "5376e626d70a1ade266e4b3e5e73d6e32c907fb2d885a72d90a0aaf9d9a8a4a7"
+      }
+    }
+  },
+  "library_versions": {
+    "python": "3.13.14",
+    "pandas": "3.0.3",
+    "numpy": "2.5.1",
+    "scikit-learn": "1.9.0",
+    "scipy": "1.18.0"
+  },
+  "leakage": {
+    "naive_before_cleaning": {
+      "exact_pct": 10.49,
+      "ge_0.95_pct": 30.64,
+      "ge_0.90_pct": 52.02,
+      "ge_0.80_pct": 82.71,
+      "median_max_similarity": 0.906
+    },
+    "naive_committed": {
+      "exact_pct": 0.0,
+      "ge_0.95_pct": 23.97,
+      "ge_0.90_pct": 47.29,
+      "ge_0.80_pct": 80.75,
+      "median_max_similarity": 0.894
+    },
+    "clean_committed": {
+      "exact_pct": 0.0,
+      "ge_0.95_pct": 0.05,
+      "ge_0.90_pct": 0.24,
+      "ge_0.80_pct": 55.05,
+      "median_max_similarity": 0.809
+    }
+  }
+}
