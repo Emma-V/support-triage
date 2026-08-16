@@ -1,0 +1,146 @@
+# ---------------------------------------------------------------
+# .gitignore - support-triage
+# הרעיון: קוד, נוטבוקים ותיעוד נכנסים לגיט. דאטה, מודלים,
+# סביבות עבודה וזבל של מערכת ההפעלה - לא.
+# ---------------------------------------------------------------
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# סביבות וירטואליות
+.venv/
+venv/
+env/
+ENV/
+.conda/
+conda-env/
+
+# כלי בדיקה / לינטינג
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+
+# ===== Jupyter =====
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+*-checkpoint.ipynb
+profile_default/
+ipython_config.py
+
+# ===== דאטה =====
+# לא מעלים דאטהסטים לגיט - רק את המבנה של התיקיות
+# (ה-README ב-data/ מסביר מאיפה להוריד את הדאטה)
+data/raw/*
+data/processed/*
+data/interim/*
+data/external/*
+!data/processed/clean/
+!data/processed/naive/
+!data/**/.gitkeep
+!data/**/README.md
+
+# פורמטים כבדים של דאטה, בכל מקום בפרויקט
+*.parquet
+*.feather
+*.arrow
+*.hdf
+*.h5
+*.sqlite
+*.sqlite3
+*.db
+*.zip
+*.7z
+*.rar
+*.tar
+*.tar.gz
+*.tgz
+
+# ===== מודלים ופלטים כבדים =====
+artifacts/*
+!artifacts/.gitkeep
+*.pkl
+*.pickle
+*.joblib
+*.pt
+*.pth
+*.ckpt
+*.onnx
+*.bin
+*.safetensors
+*.model
+*.vec
+# embeddings / קאש של מודלים מאומנים מראש
+.cache/
+cache/
+transformers_cache/
+sentence_transformers_cache/
+nltk_data/
+mlruns/
+wandb/
+
+# ===== תוצאות =====
+# results/ כן נשמר בגיט (גרפים ומטריקות קטנים = חלק מהתיעוד להגשה),
+# אבל בלי קבצים זמניים/ענקיים:
+results/**/*.tmp
+results/**/*.log
+logs/
+*.log
+
+# ===== סודות =====
+.env
+.env.*
+!.env.example
+secrets.json
+*.key
+*.pem
+credentials*.json
+
+# ===== עורכים ו-IDE =====
+.vscode/
+!.vscode/settings.json.example
+.idea/
+*.swp
+*.swo
+*~
+.spyderproject
+.spyproject
+
+# ===== מערכת הפעלה / OneDrive =====
+# חשוב במיוחד כי הפרויקט יושב בתוך OneDrive
+desktop.ini
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+$RECYCLE.BIN/
+.DS_Store
+._*
+*.lnk
+# קבצי התנגשות סנכרון של OneDrive
+*-emma-pc.*
+* - Copy.*
+* - עותק.*
+
+# ===== שונות =====
+*.bak
+*.tmp
+temp/
+tmp/
+scratch/
+
+# ===== Claude Code =====
+# קובץ ההקשר של Claude Code - אישי, לא נכנס לגיט
+CLAUDE.md
+.claude/
