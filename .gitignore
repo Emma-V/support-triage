@@ -76,6 +76,13 @@ data/external/*
 # ===== מודלים ופלטים כבדים =====
 artifacts/*
 !artifacts/.gitkeep
+# שלושת קבצי החוזה (סעיף 6 ב-CLAUDE.md) חייבים דווקא כן להיות בגיט:
+# הם זעירים, והם מגדירים את סדר המחלקות שהמודל מחזיר. אם הם לא בריפו,
+# צ'קפוינט שמור מחזיר תשובות שגויות בלי שום שגיאה.
+# שוב - פטור בשם קובץ מלא, לא חריגה על התיקייה.
+!artifacts/labels.json
+!artifacts/intent2cat.json
+!artifacts/urgency_prior.json
 *.pkl
 *.pickle
 *.joblib
