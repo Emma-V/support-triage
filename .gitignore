@@ -43,14 +43,19 @@ ipython_config.py
 # ===== דאטה =====
 # לא מעלים דאטהסטים לגיט - רק את המבנה של התיקיות
 # (ה-README ב-data/ מסביר מאיפה להוריד את הדאטה)
+# אזהרה לעצמי (קלוד): אל תוסיפי כאן חריגה שמבטלת חסימה על תיקייה
+# (למשל "!data/processed/clean/") כדי "לשמור על מבנה התיקייה" - חריגה על
+# תיקייה מבטלת את הסינון לכל קובץ שיונח בתוכה אחר כך, לא רק לתיקייה עצמה.
+# לשמירת מבנה תיקיות ריקות משתמשים אך ורק ב-.gitkeep, שכבר פטור למטה.
+# אם צריך קובץ ספציפי בכל זאת (כמו split_manifest.json) - פוטרים אותו
+# בשמו המלא, לא בתיקייה שמכילה אותו.
 data/raw/*
 data/processed/*
 data/interim/*
 data/external/*
-!data/processed/clean/
-!data/processed/naive/
 !data/**/.gitkeep
 !data/**/README.md
+!data/processed/split_manifest.json
 
 # פורמטים כבדים של דאטה, בכל מקום בפרויקט
 *.parquet
