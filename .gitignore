@@ -42,7 +42,7 @@ ipython_config.py
 
 # ===== Data =====
 # Datasets are not committed to git - only the directory structure is.
-# (data/README.md explains where to download the data from.)
+# (README.md explains where to download the data from.)
 # Warning to self (and to Claude): do not add an exception here that un-ignores
 # a whole directory (for example "!data/processed/clean/") in order to "keep the
 # folder structure" - a directory-level exception cancels the filter for every
