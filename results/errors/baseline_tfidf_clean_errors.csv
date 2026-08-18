@@ -1,0 +1,36 @@
+row_id,instruction,intent,predicted,confidence,category,flags
+23141,I cannotsubmit my shipping address,set_up_shipping_address,change_shipping_address,0.793740500762115,SHIPPING,BELZ
+15768,downlpoad bills from {{Person Name}},get_invoice,check_invoice,0.7384376658981746,INVOICE,BKLMZ
+24,help cnceling order {{Order Number}},cancel_order,change_order,0.6508121331418394,ORDER,BZ
+25029,purchase {{Order Number}} ststus,track_order,change_order,0.648358818261786,ORDER,BKLZ
+8438,I don't know what to do to speak with cusstomer service,contact_customer_service,contact_human_agent,0.6322518351671764,CONTACT,BLZ
+905,question about cancellung purchase {{Order Number}},cancel_order,change_order,0.6081380844638324,ORDER,BLZ
+15459,will umail me the bills from {{Person Name}},get_invoice,check_invoice,0.5596531464305294,INVOICE,BILMPQ
+890,need assistance withcanceling purchase {{Order Number}},cancel_order,change_order,0.5199166548516492,ORDER,BLQZ
+495,i want assistance tocancel order {{Order Number}},cancel_order,change_order,0.5140491450906465,ORDER,BQZ
+18438,I have a queston about the payment,payment_issue,check_payment_methods,0.5066922637173602,PAYMENT,BLZ
+19468,want assistance to make a purchse,place_order,complaint,0.4994683543043542,ORDER,BQZ
+15468,I'd like to donload the invoice #00108,get_invoice,check_invoice,0.49207061109856154,INVOICE,BLPQZ
+8730,i dont know what to do to talk with customre assistance,contact_customer_service,contact_human_agent,0.4818583822936652,CONTACT,BLQZ
+25941,i exepct a compensation of {{Currency Symbol}}{{Refund Amount}},track_refund,get_refund,0.46835105412537953,REFUND,BLQZ
+15523,i cant find the bill #00108 will umail it to me,get_invoice,check_invoice,0.4608584195156252,INVOICE,BCILPQ
+15091,i cannot find bill #85632 can usendit to me,get_invoice,check_invoice,0.43464304112885355,INVOICE,BCEILQZ
+25131,can you help me tracking order {{Order Number}}?,track_order,change_order,0.42329174491756716,ORDER,BI
+24706,need to sue the {{Account Category}} account,switch_account,delete_account,0.4010476358618683,ACCOUNT,BQZ
+13994,modifying {{Account Type}} account,edit_account,create_account,0.3679382769556906,ACCOUNT,BKL
+629,I don't know how I can camcel purchase {{Order Number}},cancel_order,change_order,0.3594174976349972,ORDER,BLZ
+459,i do not know how i could casncel order {{Order Number}},cancel_order,change_order,0.35007711253422574,ORDER,BEPQZ
+18023,need assistance reporting an issue with pyments,payment_issue,registration_problems,0.3201321018374247,PAYMENT,BMQZ
+17243,i dont know what to do to cancel my newxletter subscription,newsletter_subscription,delete_account,0.3178886710461273,SUBSCRIPTION,BLQZ
+11440,I need assistance removign the gold account,delete_account,switch_account,0.31073112977397,ACCOUNT,BLZ
+24243,i do not know how i could switch tto the standard account,switch_account,delete_account,0.3037226733332087,ACCOUNT,BEPQZ
+8026,want help speaking with custgomer service,contact_customer_service,contact_human_agent,0.29820917332240937,CONTACT,BLQZ
+1707,wanna swap an item of order732201349959 i need help,change_order,place_order,0.2825753502974096,ORDER,BCLQZ
+11112,I need help to deelete a pro account,delete_account,create_account,0.27867996428643366,ACCOUNT,BLZ
+1067,i cant add some items to order370795561790,change_order,place_order,0.2552012708870781,ORDER,BMNQZ
+1363,help swapping an article of purchase113542617735902,change_order,place_order,0.25316773858133346,ORDER,BLZ
+689,how to cancel the purchase i made,cancel_order,delete_account,0.22442256616028117,ORDER,BILQ
+198,"I purchased some item, help canceling one of the orders",cancel_order,place_order,0.2062188742276518,ORDER,BCLM
+19564,making order,place_order,change_order,0.1978622708527478,ORDER,BK
+860,can you help me camceling the purchase I made?,cancel_order,place_order,0.14545400859308327,ORDER,BILZ
+8918,can ya help me contactsomebody,contact_human_agent,place_order,0.07869531904717961,CONTACT,BILQZ

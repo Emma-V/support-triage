@@ -1,0 +1,10 @@
+placeholder,n_rows,n_intents,top_intent,top_intent_share
+{{Delivery City}},14,1,delivery_options,1.0
+{{Delivery Country}},11,1,delivery_options,1.0
+{{Invoice Number}},2,1,get_invoice,1.0
+{{Currency Symbol}},55,2,get_refund,0.782
+{{Refund Amount}},81,2,get_refund,0.642
+{{Person Name}},182,2,check_invoice,0.61
+{{Order Number}},633,3,change_order,0.543
+{{Account Category}},149,4,delete_account,0.356
+{{Account Type}},225,4,create_account,0.338

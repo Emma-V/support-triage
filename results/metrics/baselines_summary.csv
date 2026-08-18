@@ -1,0 +1,18 @@
+run,model,split,label_level,train_rows,eval_rows,predicted_label,split_seed,subsample_seed,train_seed,n_rows,n_labels,accuracy,f1_macro,f1_weighted,runtime_seconds,analyzer,ngram_range,min_df,sublinear_tf,n_features,class_weight,max_iter,text_transform
+majority_clean_intent,majority_class,clean,intent,9893,2120,place_order,42,,,2120,27,0.058,0.0041,0.0064,0.0,,,,,,,,
+majority_clean_category,majority_class,clean,category,9893,2120,ACCOUNT,42,,,2120,11,0.2528,0.0367,0.102,0.0,,,,,,,,
+majority_naive_intent,majority_class,naive,intent,17187,3683,newsletter_subscription,42,,,3683,27,0.0407,0.0029,0.0032,0.0,,,,,,,,
+majority_naive_category,majority_class,naive,category,17187,3683,ACCOUNT,42,,,3683,11,0.2207,0.0329,0.0798,0.0,,,,,,,,
+tfidf_naive_full,tfidf+logreg,,intent,17187,3683,,42,,,3683,27,0.9886,0.9881,0.9886,1.04,word,"[1, 2]",2.0,True,4628.0,,2000.0,none
+tfidf_naive_sub,tfidf+logreg,,intent,9893,3683,,42,42.0,,3683,27,0.9881,0.9874,0.988,0.64,word,"[1, 2]",2.0,True,3621.0,,2000.0,none
+tfidf_clean,tfidf+logreg,,intent,9893,2120,,42,,,2120,27,0.9835,0.9787,0.9832,0.9,word,"[1, 2]",2.0,True,4277.0,,2000.0,none
+tfidf_naive_sub_on_cleanval,tfidf+logreg,,intent,9893,2120,,42,42.0,,2120,27,0.9863,0.9827,0.9862,0.64,word,"[1, 2]",2.0,True,3621.0,,2000.0,none
+tfidf_clean_balanced,tfidf+logreg,,intent,9893,2120,,42,,,2120,27,0.9873,0.9842,0.9872,0.7,word,"[1, 2]",2.0,True,4277.0,balanced,2000.0,none
+tfidf_clean_ent,tfidf+logreg,,intent,9893,2120,,42,,,2120,27,0.9849,0.9805,0.9848,0.72,word,"[1, 2]",2.0,True,4256.0,,2000.0,placeholders-><ENT>
+tfidf_clean_charwb,tfidf+logreg,,intent,9893,2120,,42,,,2120,27,0.9948,0.9928,0.9948,1.59,char_wb,"[3, 5]",2.0,True,8527.0,,2000.0,none
+tfidf_naive_sub_seed42,tfidf+logreg,,intent,9893,3683,,42,42.0,,3683,27,0.9881,0.9874,0.988,0.69,word,"[1, 2]",2.0,True,3621.0,,2000.0,none
+tfidf_naive_sub_on_cleanval_seed42,tfidf+logreg,,intent,9893,2120,,42,42.0,,2120,27,0.9863,0.9827,0.9862,0.64,word,"[1, 2]",2.0,True,3621.0,,2000.0,none
+tfidf_naive_sub_seed43,tfidf+logreg,,intent,9893,3683,,42,43.0,,3683,27,0.9856,0.9847,0.9856,0.61,word,"[1, 2]",2.0,True,3618.0,,2000.0,none
+tfidf_naive_sub_on_cleanval_seed43,tfidf+logreg,,intent,9893,2120,,42,43.0,,2120,27,0.9858,0.9816,0.9857,0.66,word,"[1, 2]",2.0,True,3618.0,,2000.0,none
+tfidf_naive_sub_seed44,tfidf+logreg,,intent,9893,3683,,42,44.0,,3683,27,0.9867,0.9859,0.9867,0.71,word,"[1, 2]",2.0,True,3617.0,,2000.0,none
+tfidf_naive_sub_on_cleanval_seed44,tfidf+logreg,,intent,9893,2120,,42,44.0,,2120,27,0.9849,0.9814,0.9848,0.75,word,"[1, 2]",2.0,True,3617.0,,2000.0,none

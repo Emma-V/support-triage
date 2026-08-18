@@ -1,0 +1,5 @@
+stage,rows,pct_of_raw
+raw file,26872,100.0
+after whitespace + empty rows,26872,100.0
+after exact duplicates,24554,91.4
+after family clustering @ 0.9,14133,52.6

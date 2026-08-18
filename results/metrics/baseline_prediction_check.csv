@@ -1,0 +1,11 @@
+pair,confirmed,count
+get_invoice <-> check_invoice,True,5
+get_refund <-> track_refund,False,0
+get_refund <-> check_refund_policy,False,0
+track_refund <-> check_refund_policy,False,0
+cancel_order <-> change_order,True,6
+cancel_order <-> check_cancellation_fee,False,0
+change_order <-> check_cancellation_fee,False,0
+contact_customer_service <-> contact_human_agent,True,3
+change_shipping_address <-> set_up_shipping_address,False,0
+complaint <-> payment_issue,False,0

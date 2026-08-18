@@ -1,0 +1,30 @@
+row_id,instruction,intent,predicted,confidence,category,flags
+23141,I cannotsubmit my shipping address,set_up_shipping_address,change_shipping_address,0.6526607795086233,SHIPPING,BELZ
+8730,i dont know what to do to talk with customre assistance,contact_customer_service,contact_human_agent,0.5934102622664267,CONTACT,BLQZ
+15768,downlpoad bills from {{Person Name}},get_invoice,check_invoice,0.5907881583336326,INVOICE,BKLMZ
+10603,I need a {{Account Type}} account,create_account,delete_account,0.5754925744174896,ACCOUNT,BL
+24,help cnceling order {{Order Number}},cancel_order,change_order,0.5601876080627688,ORDER,BZ
+8438,I don't know what to do to speak with cusstomer service,contact_customer_service,contact_human_agent,0.5445248696384326,CONTACT,BLZ
+15091,i cannot find bill #85632 can usendit to me,get_invoice,check_invoice,0.5201054789419763,INVOICE,BCEILQZ
+25029,purchase {{Order Number}} ststus,track_order,change_order,0.4819012498515017,ORDER,BKLZ
+24706,need to sue the {{Account Category}} account,switch_account,delete_account,0.4802436668125664,ACCOUNT,BQZ
+10174,want help oopening a {{Account Type}} account,create_account,delete_account,0.47887164688725314,ACCOUNT,BLQZ
+159,need help with cancelliing order {{Order Number}},cancel_order,change_order,0.46790671789353283,ORDER,BQZ
+905,question about cancellung purchase {{Order Number}},cancel_order,change_order,0.45368878656772416,ORDER,BLZ
+19468,want assistance to make a purchse,place_order,complaint,0.42629038937199243,ORDER,BQZ
+15468,I'd like to donload the invoice #00108,get_invoice,check_invoice,0.4197235767947708,INVOICE,BLPQZ
+18438,I have a queston about the payment,payment_issue,check_payment_methods,0.4141600342185298,PAYMENT,BLZ
+495,i want assistance tocancel order {{Order Number}},cancel_order,change_order,0.40650034514750283,ORDER,BQZ
+14864,pudate standard account,edit_account,delete_account,0.3700142091948158,ACCOUNT,BKLZ
+629,I don't know how I can camcel purchase {{Order Number}},cancel_order,change_order,0.367967053367326,ORDER,BLZ
+15523,i cant find the bill #00108 will umail it to me,get_invoice,check_invoice,0.3590800967230499,INVOICE,BCILPQ
+11440,I need assistance removign the gold account,delete_account,switch_account,0.3556042757810106,ACCOUNT,BLZ
+13994,modifying {{Account Type}} account,edit_account,delete_account,0.3329070276138291,ACCOUNT,BKL
+24243,i do not know how i could switch tto the standard account,switch_account,delete_account,0.3271001472736597,ACCOUNT,BEPQZ
+1363,help swapping an article of purchase113542617735902,change_order,place_order,0.295362286513638,ORDER,BLZ
+19422,i try to order somethnig,place_order,change_order,0.27325741600614684,ORDER,BLQZ
+17243,i dont know what to do to cancel my newxletter subscription,newsletter_subscription,delete_account,0.25068439775086376,SUBSCRIPTION,BLQZ
+16921,wanna subscribe to the bloody ndwsletter help me,newsletter_subscription,switch_account,0.22136868135993584,SUBSCRIPTION,BCLQWZ
+19564,making order,place_order,change_order,0.19016341479678545,ORDER,BK
+198,"I purchased some item, help canceling one of the orders",cancel_order,place_order,0.17925178008813283,ORDER,BCLM
+860,can you help me camceling the purchase I made?,cancel_order,place_order,0.08254550194579437,ORDER,BILZ

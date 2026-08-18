@@ -26,7 +26,8 @@ shows the results.
 --------------------------------------------------------------------------
 READING ORDER (the file is written to be read top to bottom)
   1. Constants          - every number that must never drift lives here.
-  2. Loading            - get the raw CSV, verify it is the file we expect.
+  2. Loading            - get the raw CSV, verify it is the file we expect,
+                          and read back the frozen split files.
   3. Cleaning           - whitespace, empty rows, exact duplicates.
   4. Near-duplicates    - the interesting part: group sibling sentences.
   5. Splitting          - stratified 70/15/15, twice (clean and naive).
@@ -64,6 +65,14 @@ from sklearn.model_selection import train_test_split
 HF_REPO = "bitext/Bitext-customer-support-llm-chatbot-training-dataset"
 RAW_FILENAME = "Bitext_Sample_Customer_Support_Training_Dataset_27K_responses-v11.csv"
 DEFAULT_RAW_DIR = Path("data/raw")
+DEFAULT_PROCESSED_DIR = Path("data/processed")
+
+# The two split families and the three parts each of them has. Named here so
+# that load_split() can reject a typo instead of raising FileNotFoundError from
+# somewhere deep in pandas - "naive" vs "clean" is a two-word difference that
+# produces a completely believable wrong number.
+SPLIT_NAMES = ("clean", "naive")
+SPLIT_PARTS = ("train", "val", "test")
 
 # The three numbers the guide says to verify by hand before doing anything
 # else. If the file upstream is updated these stop matching, and every number
@@ -103,6 +112,17 @@ TFIDF_PARAMS = dict(
     min_df=2,          # an n-gram seen once is noise, and it doubles the vocabulary
     sublinear_tf=True,  # 1+log(tf): a word repeated 5x is not 5x more important
 )
+
+# How many tokens the model is given per ticket. MEASURED, not guessed:
+# token_lengths() over the whole corpus with the real Qwen3 tokenizer gave
+# p99 = 19 and max = 24, so 32 truncates exactly zero rows with room to spare
+# (figure results/figures/02_token_lengths.png).
+# It lives here rather than in the training file because it is a property of
+# THIS DATASET, and because the alternative is retyping it from a notebook
+# output tomorrow. Attention cost grows with the square of the sequence length:
+# the naive default of 512 would be ~250x the cost for identical predictions,
+# and even a slip to 64 is 4x slower with no error and no warning.
+MAX_LENGTH = 32
 
 # The columns that get written to the split CSVs.
 # `response` is deliberately NOT here. It is the templated answer, and if it
@@ -227,6 +247,68 @@ def sha256_of_file(path: Path | str) -> str:
         for chunk in iter(lambda: f.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def load_split(split_name: str, part: str,
+               processed_dir: Path | str = DEFAULT_PROCESSED_DIR) -> pd.DataFrame:
+    """Read one frozen split file, e.g. load_split("clean", "train").
+
+    This exists so that no notebook cell ever writes a path by hand. The two
+    split families differ by one word in the middle of the path, and getting it
+    wrong does not crash: training on `naive/train` while scoring `clean/val`
+    runs perfectly and answers a question nobody asked. Validating the two
+    arguments against a fixed list turns that into a ValueError naming the
+    typo.
+
+    The `response` guard is the one from section 6 of CLAUDE.md. `response` is
+    the templated ANSWER; if it ever reaches the feature side the model reads
+    the answer off its own input and scores ~0.999, which looks like success.
+    SPLIT_COLUMNS already excludes it, so this can only fire if someone
+    regenerates the CSVs with a different column list - which is exactly the
+    moment you want to be told.
+    """
+    if split_name not in SPLIT_NAMES:
+        raise ValueError(f"split_name must be one of {SPLIT_NAMES}, got {split_name!r}")
+    if part not in SPLIT_PARTS:
+        raise ValueError(f"part must be one of {SPLIT_PARTS}, got {part!r}")
+
+    path = Path(processed_dir) / split_name / f"{part}.csv"
+    if not path.exists():
+        raise FileNotFoundError(
+            f"{path} not found. The split CSVs are gitignored and rebuilt from the "
+            "seed - run notebooks/01_data.ipynb first."
+        )
+
+    df = pd.read_csv(path, encoding="utf-8")
+    if "response" in df.columns:
+        raise AssertionError(
+            f"{path} contains a `response` column. That is the answer text, and any "
+            "model that sees it scores ~0.999 while learning nothing. Rebuild the "
+            "split with SPLIT_COLUMNS before using this file."
+        )
+    return df
+
+
+def load_all_splits(processed_dir: Path | str = DEFAULT_PROCESSED_DIR,
+                    ) -> dict[str, dict[str, pd.DataFrame]]:
+    """All six CSVs, in the nested shape verify_against_manifest() expects.
+
+    {"clean": {"train": df, "val": df, "test": df}, "naive": {...}}
+
+    Returning exactly that shape is the point: the manifest check is then two
+    lines at the top of a notebook instead of a dict assembled by hand, and a
+    hand-assembled dict that omits one part verifies five files while reporting
+    success.
+
+    Note that this loads `test` as well. Loading it is not the same as looking
+    at it - the manifest check has to hash all six files or it is not checking
+    the split. Decision E2 governs SCORING on test, and that stays sealed until
+    the final run.
+    """
+    return {
+        name: {part: load_split(name, part, processed_dir) for part in SPLIT_PARTS}
+        for name in SPLIT_NAMES
+    }
 
 
 # =========================================================================

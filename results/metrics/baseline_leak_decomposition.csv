@@ -1,0 +1,3 @@
+model,acc on rows R4 memorised,acc on rows R4 never saw,n memorised,n unseen
+clean-trained (R3),0.9894,0.9796,846,1274
+naive-trained (R4),0.9941,0.9812,846,1274

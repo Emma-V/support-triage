@@ -1,0 +1,100 @@
+{
+  "schema": 1,
+  "name": "majority_clean_category",
+  "timestamp_utc": "2026-08-18T18:25:55+00:00",
+  "config": {
+    "model": "majority_class",
+    "split": "clean",
+    "label_level": "category",
+    "train_rows": 9893,
+    "eval_rows": 2120,
+    "predicted_label": "ACCOUNT",
+    "split_seed": 42,
+    "subsample_seed": null,
+    "train_seed": null
+  },
+  "metrics": {
+    "n_rows": 2120,
+    "n_labels": 11,
+    "accuracy": 0.2528,
+    "f1_macro": 0.0367,
+    "f1_weighted": 0.102,
+    "per_class": {
+      "ACCOUNT": {
+        "precision": 0.2528,
+        "recall": 1.0,
+        "f1": 0.4036,
+        "support": 536
+      },
+      "CANCEL": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 77
+      },
+      "CONTACT": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 159
+      },
+      "DELIVERY": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 143
+      },
+      "FEEDBACK": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 192
+      },
+      "INVOICE": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 138
+      },
+      "ORDER": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 270
+      },
+      "PAYMENT": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 169
+      },
+      "REFUND": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 204
+      },
+      "SHIPPING": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 182
+      },
+      "SUBSCRIPTION": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 50
+      }
+    }
+  },
+  "runtime_seconds": 0.0,
+  "library_versions": {
+    "python": "3.13.14",
+    "numpy": "2.5.1",
+    "pandas": "3.0.3",
+    "scikit-learn": "1.9.0",
+    "platform": "Windows"
+  },
+  "notes": "always predicts the most frequent training label; reads no text"
+}

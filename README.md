@@ -107,3 +107,63 @@ state now and expensive to rediscover later:
 Run `notebooks/01_data.ipynb` top to bottom. It downloads the raw file if it is
 missing, rebuilds all six CSVs and `full_corpus.csv` from seed 42, and finishes by
 re-reading them off disk and checking their hashes against `split_manifest.json`.
+
+Then run `notebooks/02_baselines.ipynb`, which verifies the same manifest before
+producing any number and writes every run to `results/metrics/`. Both notebooks are
+CPU-only and take a few minutes together.
+
+## Baselines
+
+Reference points measured before any fine-tuning, so that later scores have a scale.
+All numbers are on `val`; the test set is opened once, at the end. Full table in
+`results/metrics/baselines_summary.csv`.
+
+| model | trained on | rows | scored on | accuracy | macro-F1 |
+|---|---|---|---|---|---|
+| majority class | `clean/train` | 9,893 | `clean/val` | 0.0580 | 0.0041 |
+| majority class (11 categories) | `clean/train` | 9,893 | `clean/val` | 0.2528 | 0.0367 |
+| TF-IDF word(1,2) + LogReg | `clean/train` | 9,893 | `clean/val` | 0.9835 | **0.9787** |
+| TF-IDF word(1,2) + LogReg | `naive/train` | 17,187 | `naive/val` | 0.9886 | 0.9881 |
+| TF-IDF `char_wb`(3,5) + LogReg | `clean/train` | 9,893 | `clean/val` | 0.9948 | 0.9928 |
+
+Four things these numbers establish:
+
+1. **Why macro-F1.** A model that reads nothing scores accuracy 0.253 on the 11
+   categories but macro-F1 0.037 - a 0.216 gap, because `ACCOUNT` alone bundles six
+   intents. On the 27 intents the floor is 0.058 accuracy, not the 1/27 = 0.037 that
+   balanced classes would give, because the family collapse left them unbalanced.
+
+2. **What the leakage is worth.** Day 1 measured that ~47% of committed naive test
+   rows sit within 0.10 cosine of a training row. Converting that to a score requires
+   controlling for two confounds at once - training-set size and test-set identity -
+   so the decisive comparison trains two models on 9,893 rows each and scores both on
+   the *same* 2,120 `clean/val` rows, where one training set contains ~40% of them
+   verbatim and the other 0%. The gap is **+0.0040 macro-F1** against a subsample-draw
+   noise floor of 0.0007: real, statistically separable, and much smaller than the
+   52%-of-rows headline suggests. Both halves of that sentence matter.
+
+3. **How much headroom is left.** A linear bag-of-words model reaches 0.9787 on the
+   clean split. Anything fine-tuned can improve on that by at most 0.021.
+
+4. **Where the remaining errors are.** Typo-flagged rows (`Z`) score 0.955 against
+   0.995 for the rest - a 0.041 gap, the largest of any slice, and the one place a
+   pretrained model has obvious room to help.
+
+### A caveat this project states rather than hides
+
+Template families were collapsed at cosine 0.90, and only 0.24% of clean test rows
+remain above that threshold. But the *median* `clean/val` row still sits at 0.812
+similarity to its nearest training row. Accuracy broken down by that similarity
+(`results/metrics/baseline_clean_similarity_profile.csv`):
+
+| nearest-train similarity | rows | accuracy |
+|---|---|---|
+| < 0.6 | 35 | 0.914 |
+| 0.6 - 0.7 | 212 | 0.939 |
+| 0.7 - 0.8 | 672 | 0.984 |
+| 0.8 - 0.9 | 1,165 | 0.994 |
+
+The headline 0.983 is carried by rows that are still fairly close to something seen in
+training. On genuinely novel phrasings the same model scores about 0.93. The dedup step
+removes sibling leakage; it does not turn a template-generated corpus into a sample of
+real customer language, and no threshold could.

@@ -1,0 +1,205 @@
+{
+  "schema": 1,
+  "name": "tfidf_naive_full",
+  "timestamp_utc": "2026-08-18T18:25:56+00:00",
+  "config": {
+    "model": "tfidf+logreg",
+    "label_level": "intent",
+    "train_rows": 17187,
+    "eval_rows": 3683,
+    "analyzer": "word",
+    "ngram_range": [
+      1,
+      2
+    ],
+    "min_df": 2,
+    "sublinear_tf": true,
+    "n_features": 4628,
+    "class_weight": null,
+    "max_iter": 2000,
+    "text_transform": "none",
+    "split_seed": 42,
+    "subsample_seed": null,
+    "train_seed": null
+  },
+  "metrics": {
+    "n_rows": 3683,
+    "n_labels": 27,
+    "accuracy": 0.9886,
+    "f1_macro": 0.9881,
+    "f1_weighted": 0.9886,
+    "per_class": {
+      "cancel_order": {
+        "precision": 1.0,
+        "recall": 0.9315,
+        "f1": 0.9645,
+        "support": 73
+      },
+      "change_order": {
+        "precision": 0.9545,
+        "recall": 0.9692,
+        "f1": 0.9618,
+        "support": 130
+      },
+      "change_shipping_address": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 146
+      },
+      "check_cancellation_fee": {
+        "precision": 0.9931,
+        "recall": 1.0,
+        "f1": 0.9965,
+        "support": 143
+      },
+      "check_invoice": {
+        "precision": 0.9645,
+        "recall": 0.9855,
+        "f1": 0.9749,
+        "support": 138
+      },
+      "check_payment_methods": {
+        "precision": 0.9932,
+        "recall": 0.9866,
+        "f1": 0.9899,
+        "support": 149
+      },
+      "check_refund_policy": {
+        "precision": 0.9933,
+        "recall": 0.9933,
+        "f1": 0.9933,
+        "support": 149
+      },
+      "complaint": {
+        "precision": 0.9933,
+        "recall": 1.0,
+        "f1": 0.9967,
+        "support": 149
+      },
+      "contact_customer_service": {
+        "precision": 1.0,
+        "recall": 0.96,
+        "f1": 0.9796,
+        "support": 150
+      },
+      "contact_human_agent": {
+        "precision": 0.9613,
+        "recall": 1.0,
+        "f1": 0.9803,
+        "support": 149
+      },
+      "create_account": {
+        "precision": 0.9708,
+        "recall": 0.9925,
+        "f1": 0.9815,
+        "support": 134
+      },
+      "delete_account": {
+        "precision": 0.9856,
+        "recall": 1.0,
+        "f1": 0.9928,
+        "support": 137
+      },
+      "delivery_options": {
+        "precision": 0.99,
+        "recall": 1.0,
+        "f1": 0.995,
+        "support": 99
+      },
+      "delivery_period": {
+        "precision": 0.9933,
+        "recall": 1.0,
+        "f1": 0.9967,
+        "support": 149
+      },
+      "edit_account": {
+        "precision": 0.9741,
+        "recall": 0.9826,
+        "f1": 0.9784,
+        "support": 115
+      },
+      "get_invoice": {
+        "precision": 0.985,
+        "recall": 0.9632,
+        "f1": 0.974,
+        "support": 136
+      },
+      "get_refund": {
+        "precision": 0.9926,
+        "recall": 0.9781,
+        "f1": 0.9853,
+        "support": 137
+      },
+      "newsletter_subscription": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 150
+      },
+      "payment_issue": {
+        "precision": 1.0,
+        "recall": 0.9733,
+        "f1": 0.9865,
+        "support": 150
+      },
+      "place_order": {
+        "precision": 0.98,
+        "recall": 0.9866,
+        "f1": 0.9833,
+        "support": 149
+      },
+      "recover_password": {
+        "precision": 0.9933,
+        "recall": 1.0,
+        "f1": 0.9967,
+        "support": 149
+      },
+      "registration_problems": {
+        "precision": 0.9866,
+        "recall": 0.98,
+        "f1": 0.9833,
+        "support": 150
+      },
+      "review": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 149
+      },
+      "set_up_shipping_address": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 149
+      },
+      "switch_account": {
+        "precision": 1.0,
+        "recall": 0.9922,
+        "f1": 0.9961,
+        "support": 128
+      },
+      "track_order": {
+        "precision": 1.0,
+        "recall": 0.9917,
+        "f1": 0.9958,
+        "support": 120
+      },
+      "track_refund": {
+        "precision": 0.9907,
+        "recall": 1.0,
+        "f1": 0.9953,
+        "support": 106
+      }
+    }
+  },
+  "runtime_seconds": 1.04,
+  "library_versions": {
+    "python": "3.13.14",
+    "numpy": "2.5.1",
+    "pandas": "3.0.3",
+    "scikit-learn": "1.9.0",
+    "platform": "Windows"
+  },
+  "notes": "the number that would have been reported without any dedup"
+}

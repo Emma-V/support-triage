@@ -1,0 +1,196 @@
+{
+  "schema": 1,
+  "name": "majority_naive_intent",
+  "timestamp_utc": "2026-08-18T18:25:55+00:00",
+  "config": {
+    "model": "majority_class",
+    "split": "naive",
+    "label_level": "intent",
+    "train_rows": 17187,
+    "eval_rows": 3683,
+    "predicted_label": "newsletter_subscription",
+    "split_seed": 42,
+    "subsample_seed": null,
+    "train_seed": null
+  },
+  "metrics": {
+    "n_rows": 3683,
+    "n_labels": 27,
+    "accuracy": 0.0407,
+    "f1_macro": 0.0029,
+    "f1_weighted": 0.0032,
+    "per_class": {
+      "cancel_order": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 73
+      },
+      "change_order": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 130
+      },
+      "change_shipping_address": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 146
+      },
+      "check_cancellation_fee": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 143
+      },
+      "check_invoice": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 138
+      },
+      "check_payment_methods": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 149
+      },
+      "check_refund_policy": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 149
+      },
+      "complaint": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 149
+      },
+      "contact_customer_service": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 150
+      },
+      "contact_human_agent": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 149
+      },
+      "create_account": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 134
+      },
+      "delete_account": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 137
+      },
+      "delivery_options": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 99
+      },
+      "delivery_period": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 149
+      },
+      "edit_account": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 115
+      },
+      "get_invoice": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 136
+      },
+      "get_refund": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 137
+      },
+      "newsletter_subscription": {
+        "precision": 0.0407,
+        "recall": 1.0,
+        "f1": 0.0783,
+        "support": 150
+      },
+      "payment_issue": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 150
+      },
+      "place_order": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 149
+      },
+      "recover_password": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 149
+      },
+      "registration_problems": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 150
+      },
+      "review": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 149
+      },
+      "set_up_shipping_address": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 149
+      },
+      "switch_account": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 128
+      },
+      "track_order": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 120
+      },
+      "track_refund": {
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 106
+      }
+    }
+  },
+  "runtime_seconds": 0.0,
+  "library_versions": {
+    "python": "3.13.14",
+    "numpy": "2.5.1",
+    "pandas": "3.0.3",
+    "scikit-learn": "1.9.0",
+    "platform": "Windows"
+  },
+  "notes": "always predicts the most frequent training label; reads no text"
+}

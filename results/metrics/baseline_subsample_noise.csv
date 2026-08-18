@@ -1,0 +1,4 @@
+subsample_seed,clean/val rows drawn,macro-F1 on naive/val,macro-F1 on clean/val
+42,39.91,0.9874,0.9827
+43,40.42,0.9847,0.9816
+44,39.95,0.9859,0.9814
