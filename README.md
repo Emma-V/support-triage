@@ -73,13 +73,37 @@ Nothing under `data/` is committed except the `.gitkeep` markers and
 - `data/raw/` - downloaded once from HuggingFace (19 MB), gitignored.
 - `data/processed/{clean,naive}/*.csv` - regenerated deterministically from the
   frozen seed, gitignored.
+- `data/processed/full_corpus.csv` - regenerated with the splits, gitignored. The
+  registry of **every** raw row: its template family, the split side that family
+  landed on, and role flags (`is_representative`, `is_exact_duplicate`). Stage 1
+  never reads it; it exists so stage 2 can build its retrieval corpus from
+  train-side families only, and so nothing is silently discarded by the
+  one-representative-per-family collapse.
 - `data/processed/split_manifest.json` - **committed**. Seed, threshold, row counts
-  and a sha256 per split. It holds no rows, and it is what proves a rebuild produced
-  the same split. If the file upstream is ever updated, the rebuilt split stops
-  matching these hashes and the assert at the top of every notebook fires.
+  and a sha256 per split (the full-corpus registry included). It holds no rows, and
+  it is what proves a rebuild produced the same split. If the file upstream is ever
+  updated, the rebuilt split stops matching these hashes and the assert at the top
+  of every notebook fires.
+
+### Rules fixed now for the later stages (stage 2+)
+
+Three rules recorded while the split was being designed, because they are cheap to
+state now and expensive to rediscover later:
+
+1. The stage-2 retrieval corpus is built from **train-side families only**
+   (`full_corpus.csv`, rows with `split == "train"`). A test-family row in the
+   corpus would let the end-to-end evaluation retrieve the answer key.
+2. **Filter by intent, rank by text.** Several intents measurably bundle more than
+   one user goal under one label - `newsletter_subscription` covers both subscribe
+   and unsubscribe, `switch_account` covers both upgrade-tier and switch-user (the
+   measurement is in `notebooks/01_data.ipynb`, "subgoal separability"). A reply
+   chosen from the intent alone answers the wrong goal for a large minority of
+   tickets; retrieval ranked by the ticket's own text recovers the distinction.
+3. Responses are joined back from `data/raw/` via `row_id`. No file under
+   `data/processed/` contains the `response` column.
 
 ### How to rebuild
 
 Run `notebooks/01_data.ipynb` top to bottom. It downloads the raw file if it is
-missing, rebuilds all six CSVs from seed 42, and finishes by re-reading them off disk
-and checking their hashes against `split_manifest.json`.
+missing, rebuilds all six CSVs and `full_corpus.csv` from seed 42, and finishes by
+re-reading them off disk and checking their hashes against `split_manifest.json`.

@@ -13,6 +13,11 @@ What goes in here:
 - Save a fingerprint of the split: the seed used, how many rows in each part.
   This is what lets the lecturer run the code and get exactly the same split,
   and therefore exactly the same numbers as the report.
+- Keep a registry of EVERY raw row (full_corpus.csv): its template family, the
+  split side that family landed on, and whether it is the row that represents
+  the family in the classification files. Stage 1 never reads it; it is what
+  lets stage 2 (RAG) build a retrieval corpus from train-side families only,
+  so a sibling of a test sentence can never end up in the corpus.
 
 Note: no print statements and no plots in this file. Only functions that take
 a table and return a table. notebooks/01_data.ipynb is what runs them and
@@ -28,6 +33,8 @@ READING ORDER (the file is written to be read top to bottom)
   6. Leakage measurement- how close is a test row to its nearest train row.
   7. Artifacts          - labels / intent->category / urgency, the contract.
   8. Manifest           - the identity card of the split.
+  9. Token lengths      - instruction lengths in real model tokens.
+  10. Taxonomy diagnostic - how much each intent label bundles distinct goals.
 --------------------------------------------------------------------------
 """
 
@@ -105,6 +112,17 @@ TFIDF_PARAMS = dict(
 # `flags` and `category` DO stay: they are never features either, but they are
 # needed for error slicing and for category-level metrics.
 SPLIT_COLUMNS = ["row_id", "instruction", "intent", "category", "flags", "dup_group"]
+
+# The columns of data/processed/full_corpus.csv - the registry of EVERY raw row
+# (decision C6). Not a training file: stage 1 never reads it. It exists so that
+# stage 2 can build its retrieval corpus from train-side families only, and so
+# that the ~2.3k exact-duplicate rows (whose responses are unique) keep a split
+# assignment instead of silently falling outside the guarantee.
+# `response` is deliberately absent here too: stage 2 joins it back from
+# data/raw/ via row_id, so nothing under data/processed/ ever contains the
+# answer text.
+FULL_CORPUS_COLUMNS = ["row_id", "instruction", "intent", "category", "flags",
+                       "dup_group", "split", "is_representative", "is_exact_duplicate"]
 
 # The urgency table (decision A2). A business rule, not a learned task.
 # Written once, by hand, and validated against the real 27 labels below.
@@ -415,6 +433,69 @@ def split_stratified(df: pd.DataFrame, seed: int = SPLIT_SEED,
     return train.copy(), val.copy(), test.copy()
 
 
+def build_full_corpus(df_all: pd.DataFrame, df_deduped: pd.DataFrame,
+                      clean_parts: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """Every raw row, stamped with its family, its split side, and its role.
+
+    Why this file exists (decision C6). The clean split keeps one row per
+    family, which is right for CLASSIFICATION - train and test stay template-
+    uniform, so the score measures generalisation across templates - and wrong
+    as an archive: the other ~10k rows would simply be discarded, and they are
+    exactly the raw material stage 2 (RAG) needs, since every row's `response`
+    is unique. This function throws nothing away. Every row inherits the split
+    side of its family's representative:
+
+    - one family -> one representative -> exactly one side, so the
+      inheritance is well-defined;
+    - a whole family is always on ONE side, so a stage-2 corpus built as
+      `split == "train"` can never contain a sibling of a test sentence.
+      Contamination becomes impossible by construction instead of a
+      convention someone has to remember.
+
+    Exact duplicates (dropped before clustering) are re-attached through their
+    (instruction, intent) key - unambiguous because the dataset has zero exact
+    label conflicts - and marked is_exact_duplicate.
+
+    The `split` column refers to the CLEAN split only; the naive control split
+    keeps its own six CSVs and plays no role here.
+
+    df_all      : whitespace-normalised rows incl. exact duplicates (has row_id)
+    df_deduped  : after drop_exact_duplicates, with dup_group assigned
+    clean_parts : {"train": ..., "val": ..., "test": ...} - the representative
+                  frames exactly as split_stratified returned them
+    """
+    # 1. every raw row -> its family, through the exact-duplicate key.
+    #    validate= raises if the key is not unique on the deduped side.
+    full = df_all.merge(df_deduped[["instruction", "intent", "dup_group"]],
+                        on=["instruction", "intent"], how="left",
+                        validate="many_to_one")
+    if full["dup_group"].isna().any():
+        raise AssertionError(
+            "some raw rows matched no family - the dedup key drifted between "
+            "df_all and df_deduped")
+
+    # 2. family -> side, read off where the family's representative landed
+    split_of_family: dict[int, str] = {}
+    for part_name, frame in clean_parts.items():
+        for g in frame["dup_group"]:
+            split_of_family[int(g)] = part_name
+    full["split"] = full["dup_group"].map(split_of_family)
+    if full["split"].isna().any():
+        raise AssertionError(
+            "some families have no split side - clean_parts does not cover "
+            "every dup_group")
+
+    # 3. roles
+    rep_ids = set(pd.concat([f["row_id"] for f in clean_parts.values()]))
+    full["is_representative"] = full["row_id"].isin(rep_ids)
+    full["is_exact_duplicate"] = ~full["row_id"].isin(set(df_deduped["row_id"]))
+
+    # deterministic file order: the raw file order, which row_id preserves
+    return (full[FULL_CORPUS_COLUMNS]
+            .sort_values("row_id")
+            .reset_index(drop=True))
+
+
 # =========================================================================
 # 6. LEAKAGE MEASUREMENT
 # =========================================================================
@@ -519,17 +600,39 @@ def sha256_of_split(df: pd.DataFrame) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def sha256_of_full_corpus(df: pd.DataFrame) -> str:
+    """Fingerprint of the full-corpus registry.
+
+    Unlike sha256_of_split, this includes dup_group, split and
+    is_representative: those assignments ARE the file's content. A rebuild
+    that kept every text but moved one family to the other side must fail
+    the manifest check, not pass it.
+    """
+    payload = "\n".join(
+        f"{r}\t{t}\t{y}\t{g}\t{s}\t{int(rep)}"
+        for r, t, y, g, s, rep in zip(df["row_id"], df["instruction"], df["intent"],
+                                      df["dup_group"], df["split"],
+                                      df["is_representative"])
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
 def build_manifest(raw_path: Path | str, counts: dict, splits: dict[str, dict[str, pd.DataFrame]],
                    threshold: float = NEAR_DUP_THRESHOLD, seed: int = SPLIT_SEED,
-                   library_versions: dict | None = None) -> dict:
+                   library_versions: dict | None = None,
+                   full_corpus: pd.DataFrame | None = None) -> dict:
     """The identity card of the split. Small, committed to git, and load-bearing.
 
     The split CSVs themselves are gitignored - they are rebuilt from the seed.
     This file is the proof that a rebuild produced the same thing. Without it,
     an upstream dataset update or a scikit-learn major version bump moves the
     split and nobody notices; with it, the bootstrap assert fires immediately.
+
+    When the full-corpus registry is passed, its fingerprint is included too:
+    the family-to-side assignment is as much a part of the frozen split as the
+    six CSVs are.
     """
-    return {
+    manifest = {
         "seed": seed,
         "near_dup_threshold": threshold,
         "scheme": "70/15/15 stratified on intent, two-step",
@@ -549,14 +652,26 @@ def build_manifest(raw_path: Path | str, counts: dict, splits: dict[str, dict[st
         },
         "library_versions": library_versions or {},
     }
+    if full_corpus is not None:
+        manifest["full_corpus"] = {
+            "n_rows": len(full_corpus),
+            "n_families": int(full_corpus["dup_group"].nunique()),
+            "n_representatives": int(full_corpus["is_representative"].sum()),
+            "sha256": sha256_of_full_corpus(full_corpus),
+        }
+    return manifest
 
 
-def verify_against_manifest(manifest: dict, splits: dict[str, dict[str, pd.DataFrame]]) -> None:
+def verify_against_manifest(manifest: dict, splits: dict[str, dict[str, pd.DataFrame]],
+                            full_corpus: pd.DataFrame | None = None) -> None:
     """Re-hash the splits on disk and compare to the manifest. Raise on mismatch.
 
     This is the assert that makes the reproducibility claim self-verifying.
     It runs at the top of every notebook, which is the only place it is useful:
     a check that runs after the numbers are produced is decoration.
+
+    `full_corpus` is optional so that a notebook which only reads the six split
+    CSVs can still verify them without rebuilding the registry.
     """
     problems = []
     for name, parts in splits.items():
@@ -567,6 +682,13 @@ def verify_against_manifest(manifest: dict, splits: dict[str, dict[str, pd.DataF
                 problems.append(f"{name}/{part}: sha256 {actual[:12]} != {expected['sha256'][:12]}")
             if len(frame) != expected["n_rows"]:
                 problems.append(f"{name}/{part}: {len(frame)} rows != {expected['n_rows']}")
+    if full_corpus is not None and "full_corpus" in manifest:
+        expected = manifest["full_corpus"]
+        actual = sha256_of_full_corpus(full_corpus)
+        if actual != expected["sha256"]:
+            problems.append(f"full_corpus: sha256 {actual[:12]} != {expected['sha256'][:12]}")
+        if len(full_corpus) != expected["n_rows"]:
+            problems.append(f"full_corpus: {len(full_corpus)} rows != {expected['n_rows']}")
     if problems:
         raise AssertionError(
             "The rebuilt split does not match split_manifest.json:\n  " + "\n  ".join(problems)
@@ -604,3 +726,58 @@ def token_lengths(texts: pd.Series | list[str], model_name: str = "Qwen/Qwen3-1.
     tok = AutoTokenizer.from_pretrained(model_name)
     encoded = tok(list(texts), add_special_tokens=True)["input_ids"]
     return np.array([len(ids) for ids in encoded])
+
+
+# =========================================================================
+# 10. TAXONOMY DIAGNOSTIC
+# =========================================================================
+
+def subgoal_separability(df: pd.DataFrame, seed: int = SPLIT_SEED) -> pd.DataFrame:
+    """How much does each intent label bundle more than one user goal?
+
+    Method, per intent: cluster the RESPONSES into two groups (the NLG engine
+    wrote different reply templates for different user goals, so the response
+    text is a cheap proxy for what the customer actually wanted), then train a
+    small classifier to predict the response cluster from the INSTRUCTION
+    alone, 3-fold cross-validated.
+
+    Reading the `lift` column (accuracy minus the majority baseline):
+      ~0.0 - the two response clusters are template noise; the instruction does
+             not encode them, and the label is as fine as the data supports.
+      high - the customer's own words reliably signal a distinction that the
+             intent label throws away (subscribe vs unsubscribe, file-a-claim
+             vs complain, upgrade-tier vs switch-user).
+
+    This is a diagnostic, not training code: nothing it fits is kept, and
+    nothing here touches the split. It is the measured basis for the stage-2
+    rule "filter by intent, RANK BY TEXT": with high lift on most intents,
+    mapping intent -> one canned reply would answer the wrong goal for a large
+    minority of tickets.
+
+    k=2 is a deliberately coarse instrument - the true number of goals per
+    intent is not necessarily two - so `lift` is a lower bound on the
+    bundling, not an exact measurement of it.
+    """
+    from sklearn.cluster import KMeans
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.model_selection import cross_val_score
+
+    rows = []
+    for intent, g in df.groupby("intent"):
+        R = TfidfVectorizer(max_features=3000, stop_words="english").fit_transform(g["response"])
+        response_cluster = KMeans(n_clusters=2, n_init=10, random_state=seed).fit(R).labels_
+        I = TfidfVectorizer(**TFIDF_PARAMS).fit_transform(g["instruction"])
+        accuracy = cross_val_score(LogisticRegression(max_iter=2000),
+                                   I, response_cluster, cv=3).mean()
+        majority = float(np.bincount(response_cluster).max()) / len(g)
+        rows.append({
+            "intent": intent,
+            "n_rows": len(g),
+            "smaller_cluster_pct": round(100 * (1 - majority), 1),
+            "instruction_predicts_cluster": round(accuracy, 3),
+            "majority_baseline": round(majority, 3),
+            "lift": round(accuracy - majority, 3),
+        })
+    return (pd.DataFrame(rows)
+            .sort_values("lift", ascending=False)
+            .reset_index(drop=True))

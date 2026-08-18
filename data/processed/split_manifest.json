@@ -60,6 +60,12 @@
     "scikit-learn": "1.9.0",
     "scipy": "1.18.0"
   },
+  "full_corpus": {
+    "n_rows": 26872,
+    "n_families": 14133,
+    "n_representatives": 14133,
+    "sha256": "fb97d62a063b289cdeaa1af30720020785bd3d22ce71919bf2e25826063f6f4a"
+  },
   "leakage": {
     "naive_before_cleaning": {
       "exact_pct": 10.49,
