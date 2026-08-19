@@ -77,7 +77,7 @@ data/external/*
 # ===== Models and heavy outputs =====
 artifacts/*
 !artifacts/.gitkeep
-# The three contract files (section 6 of CLAUDE.md) must specifically be in git:
+# The three contract files must specifically be in git:
 # they are tiny, and they define the class order the model returns. If they are
 # not in the repo, a saved checkpoint returns wrong answers without any error.
 # Again - exempt by full filename, not by a directory-level exception.

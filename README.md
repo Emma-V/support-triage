@@ -1,9 +1,10 @@
 # support-triage
 
-Customer Support Ticket Triage + Auto-Draft Agent. Solo student project, Applied
-Language Models course.
+Customer Support Ticket Triage + Auto-Draft Agent. Team project, Applied
+Language Models course. This part of the repository — data pipeline and
+baselines — is Emma Vainshtein's contribution.
 
-<!-- TODO: project overview, pipeline diagram, results summary — filled in at the end. -->
+<!-- TODO: project overview, team members, pipeline diagram, results summary — filled in at the end. -->
 
 ## Data
 
@@ -199,7 +200,8 @@ Six things these numbers establish:
    real advantage of the feature space, not an artefact.
 
    A tempting further claim is **not** made here, and the reason is worth recording.
-   Section 9 of `notebooks/01_data.ipynb` measures that **0.83%** of
+   Section 1.4 of `notebooks/01_data.ipynb` ("The ambiguity ceiling, measured
+   exhaustively") measures that **0.83%** of
    corpus rows have a near-identical twin carrying a *different* intent (73% of them
    `check_invoice` against `get_invoice`), which looks like an accuracy ceiling of
    about 0.9917. It is not one. Only 6 of the 2,120 `clean/val` rows have such a twin
@@ -265,7 +267,8 @@ building the split and where the answer was free to be non-zero
 | `word(1,2)` | any intent | 0.38% | 1.79% | 0.695 | 1.000 |
 
 The 1.79% is the number worth quoting, and reading the pairs behind it — printed in
-section 9 of `notebooks/01_data.ipynb` — shows it is not sibling leakage. Seven
+section 1.4 of `notebooks/01_data.ipynb`, under "What are those word-space pairs,
+actually?" — shows it is not sibling leakage. Seven
 `clean/test` rows are *word-identical* to a training row; three differ only in
 punctuation or casing, and four differ only in a rare typo token that `min_df=2` prunes
 out of the vocabulary. In character n-grams those same pairs score 0.275 to 0.898 —

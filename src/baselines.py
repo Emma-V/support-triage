@@ -5,8 +5,8 @@ A baseline is not a failed attempt - it is the unit of measurement for
 everything that comes after it. "macro-F1 0.91" is a number with no scale;
 "0.91 against a floor of 0.06 and a TF-IDF baseline of 0.83" is a claim.
 
-Two baselines live here. The third one named in CLAUDE.md section 4 - the
-zero/few-shot untrained Qwen3 - needs a GPU and is therefore not in this file.
+Two baselines live here. The third planned baseline - the zero/few-shot
+untrained Qwen3 - needs a GPU and is therefore not in this file.
 
   1. Majority class. Always answer the most common training label, without
      reading the text. The absolute floor: any model that does not beat it is
@@ -109,8 +109,9 @@ def build_tfidf_pipeline(analyzer: str = "word",
     because quantifying that bias is more convincing than avoiding it.
 
     On `lowercase=True`: this does not contradict the "minimal cleaning" rule
-    in CLAUDE.md section 4. That rule is about what is written to disk, and its
-    real content is that train and inference must be treated identically.
+    (README, "Every cleaning step, and what it buys"). That rule is about what
+    is written to disk, and its real content is that train and inference must
+    be treated identically.
     Lowercasing inside the pipeline is applied to training text and to live
     tickets by the same fitted object, so there is no train/serving skew.
 

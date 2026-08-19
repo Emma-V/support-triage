@@ -267,8 +267,9 @@ def load_split(split_name: str, part: str,
     arguments against a fixed list turns that into a ValueError naming the
     typo.
 
-    The `response` guard is the one from section 6 of CLAUDE.md. `response` is
-    the templated ANSWER; if it ever reaches the feature side the model reads
+    The `response` guard enforces the README rule that no file under
+    data/processed/ carries the `response` column. `response` is the
+    templated ANSWER; if it ever reaches the feature side the model reads
     the answer off its own input and scores ~0.999, which looks like success.
     SPLIT_COLUMNS already excludes it, so this can only fire if someone
     regenerates the CSVs with a different column list - which is exactly the
@@ -634,7 +635,7 @@ def exact_overlap(train: pd.DataFrame, test: pd.DataFrame, column: str = "instru
 
 
 # =========================================================================
-# 7. ARTIFACTS  (the contract - see section 6 of CLAUDE.md)
+# 7. ARTIFACTS  (the contract: three small JSON files, committed on purpose)
 # =========================================================================
 
 def build_labels(df: pd.DataFrame) -> list[str]:
