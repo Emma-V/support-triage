@@ -1,0 +1,5 @@
+stage,rows,pct_of_raw,texts_changed,empty_rows_dropped,extra_pairs_merged,exact_dups_found
+raw file,26872,100.0,,,,
+after whitespace + empty rows,26872,100.0,551,0,81,
+after exact duplicates,24554,91.4,,,,2318
+after family clustering @ 0.9,14133,52.6,,,,

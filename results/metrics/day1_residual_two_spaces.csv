@@ -1,0 +1,5 @@
+space,relation,guaranteed_zero,ge_0.95_pct,ge_0.90_pct,ge_0.80_pct,median,max
+"char_wb(3,5)",same_intent,True,0.0,0.0,54.1,0.807,0.899984
+"char_wb(3,5)",any_intent,False,0.05,0.24,55.05,0.809,0.961152
+"word(1,2)",same_intent,False,0.38,1.79,16.23,0.692,1.0
+"word(1,2)",any_intent,False,0.38,1.79,16.51,0.695,1.0

@@ -1,5 +1,0 @@
-split,level,always predicts,accuracy,macro-F1,weighted-F1
-clean,intent,place_order,0.058,0.0041,0.0064
-clean,category,ACCOUNT,0.2528,0.0367,0.102
-naive,intent,newsletter_subscription,0.0407,0.0029,0.0032
-naive,category,ACCOUNT,0.2207,0.0329,0.0798
