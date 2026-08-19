@@ -59,7 +59,7 @@ split, kept as the control group.
 ### Every cleaning step, and what it buys
 
 The project is deliberately short of cleaning steps, and each one is measured rather
-than assumed. `results/metrics/day1_cleaning_funnel.csv` holds these numbers: the
+than assumed. `results/metrics/corpus_cleaning_funnel.csv` holds these numbers: the
 rows surviving each stage, with the whitespace counters on the stage they explain.
 
 | step | rows in | rows out | what it buys |
@@ -87,7 +87,10 @@ Two smaller points, both verified against the file rather than the documentation
 Nothing under `data/` is committed except the `.gitkeep` markers and
 `data/processed/split_manifest.json`.
 
-- `data/raw/` - downloaded once from HuggingFace (19 MB), gitignored.
+- `data/raw/` - fetched from HuggingFace on demand and not kept on disk (19 MB,
+  gitignored). `load_raw()` re-downloads it when it is missing, `verify_raw()`
+  raises if the shape moved, and the manifest stores its sha256 - so the integrity
+  guarantee lives in the manifest rather than in a local copy of the file.
 - `data/processed/{clean,naive}/*.csv` - regenerated deterministically from the
   frozen seed, gitignored.
 - `data/processed/full_corpus.csv` - regenerated with the splits, gitignored. The
@@ -106,9 +109,10 @@ Nothing under `data/` is committed except the `.gitkeep` markers and
 keyed by one thing — a threshold, an intent, a run — and nothing is written twice:
 the per-run detail of all 18 baseline runs lives in `baselines_summary.csv` rather
 than in a JSON file per run beside it. Frames of individual rows are not written at
-all. Where reading the rows is the point, the notebook prints a handful of worked
-examples inline and the frame stays in memory; the one exception is
-`day1_cross_intent_twin_ids.csv`, which carries ids across notebooks and no text.
+all. Where reading the rows is the point, the notebook prints worked examples
+inline and saves a small curated set - `corpus_cross_intent_examples.csv` holds
+seven rows, one per conflicting intent pair, rather than the 203 rows behind them.
+File names say what a table contains, not which day it was produced.
 
 ### Rules fixed now for the later stages (stage 2+)
 
@@ -195,7 +199,7 @@ Six things these numbers establish:
    real advantage of the feature space, not an artefact.
 
    A tempting further claim is **not** made here, and the reason is worth recording.
-   `results/metrics/day1_cross_intent_twin_ids.csv` measures that **0.83%** of
+   Section 9 of `notebooks/01_data.ipynb` measures that **0.83%** of
    corpus rows have a near-identical twin carrying a *different* intent (73% of them
    `check_invoice` against `get_invoice`), which looks like an accuracy ceiling of
    about 0.9917. It is not one. Only 6 of the 2,120 `clean/val` rows have such a twin
@@ -251,7 +255,7 @@ not a result.
 
 So the same measurement is repeated in `word(1,2)`, a feature space that had no part in
 building the split and where the answer was free to be non-zero
-(`results/metrics/day1_residual_two_spaces.csv`):
+(`results/metrics/corpus_residual_leakage.csv`):
 
 | space | relation | >= 0.95 | >= 0.90 | median | max |
 |---|---|---|---|---|---|

@@ -1,0 +1,8 @@
+pair,similarity,instruction,twin_instruction
+create_account <-> registration_problems,0.962,creating user,help creating user
+get_refund <-> track_refund,0.96,I exxpect a rebate of {{Currency Symbol}}{{Refund Amount}},rebate {{Currency Symbol}}{{Refund Amount}}
+check_invoice <-> get_invoice,0.949,I want assistance to get my invoices from {{Person Name}},I want assistance to see my invoices from {{Person Name}}
+cancel_order <-> change_order,0.938,cancel purchase113542617735902,update purchase113542617735902
+edit_account <-> switch_account,0.929,changing info on {{Account Category}} account,changing to {{Account Category}} account
+delete_account <-> switch_account,0.925,want assistnace to cancel my {{Account Category}} account,I want assistnace to use the {{Account Category}} account
+create_account <-> switch_account,0.916,I want a {{Account Category}} account,I want help to use the {{Account Category}} account
