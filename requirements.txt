@@ -32,3 +32,17 @@ torch==2.13.0
 
 # ---- running the notebooks ----
 ipykernel==7.3.0
+
+# ---- day 3 onwards: GPU fine-tuning (notebooks/03_train.ipynb) ----
+# Not pinned, and that is deliberate: this half of the project runs on Colab,
+# where torch and transformers are preinstalled against a specific CUDA build
+# and pip-installing a pinned torch on top of it is the single most reliable
+# way to break a runtime. The two constraints that actually matter are checked
+# in code instead - src.train.check_transformers_version() blocks the notebook
+# below 4.51, where the Qwen3 architecture is unknown, and gpu_report() records
+# the exact versions and the GPU into every run record.
+#
+# On Colab: `pip install -q peft` is enough. torch, transformers and
+# accelerate are already there.
+peft>=0.11
+accelerate>=0.30

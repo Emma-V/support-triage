@@ -298,3 +298,83 @@ is an average over that gradient: on the 51 rows furthest from anything seen in
 training the same model scores **0.882**, about 0.10 below its headline. De-duplication
 removes sibling leakage; it does not turn a template-generated corpus into a sample of
 real customer language, and no threshold could.
+
+## Fine-tuning
+
+`notebooks/03_train.ipynb` is the only notebook that needs a GPU, and `src/train.py` is
+the only module that imports torch. Everything below is method; the numbers land in
+`results/metrics/gpu_runs_summary.csv` and are quoted here once they exist.
+
+### The model
+
+`Qwen3-1.7B` with a 27-way classification head (`AutoModelForSequenceClassification`,
+`task_type=SEQ_CLS`), adapted with LoRA. The **instruct** variant, not `-Base`: the
+untrained baseline below has to be measured on the same weights the adapter sits on, or
+the before/after difference mixes a model swap into a fine-tune. `Qwen3-0.6B` is used for
+the debug run only and none of its numbers are reported.
+
+LoRA on `q_proj` and `v_proj`, `dropout=0.05`, and the head in `modules_to_save`. The
+sweep is over **`r` alone**, with `alpha = 2r` tied to it — with alpha held fixed instead,
+changing `r` would change both the adapter's capacity and how strongly its output is
+scaled, and a difference between two rows could not be attributed to either. Every other
+hyper-parameter is a module-level constant in `src/train.py` rather than a notebook cell,
+so that a mid-day nudge appears as a diff in git instead of as an invisible difference
+between two runs.
+
+`MAX_LENGTH = 32`, measured on day 1 rather than chosen: p99 is 19 tokens and the longest
+row is 24. The naive default of 512 would cost roughly 250x the attention for identical
+predictions, and a slip to 64 is 4x slower with no error and no warning.
+
+### The three baselines are measured before any of it
+
+Majority class and TF-IDF were measured on CPU (above). The third needs a GPU: **Qwen3-1.7B
+with no adapter and no training at all**, zero-shot and with one demonstration per intent.
+
+It is not measured through the classification head. That head is initialised at random, so a
+score taken through it would be a score of the random numbers in it — roughly guessing, and
+it would inflate the apparent improvement for free. Free generation is the other option, and
+it needs mapping rules for outputs matching none of the 27 labels; those rules are themselves
+an arbitrary choice that moves the number. So the measurement is **label scoring**: for each
+of the 27 intents, how likely the model finds that label as the continuation of the prompt,
+highest wins. Always a legal label, no mapping rules, and the untrained head is never touched.
+
+Two things are fixed before the run rather than after:
+
+- **The demonstrations come from `clean/train` only**, one per intent, drawn at random with a
+  recorded seed. An example taken from `clean/val` puts a validation sentence inside the
+  prompt used to score `clean/val`, and nothing external would show it.
+- **Length-normalised scoring is the headline.** Labels are 1 to about 7 tokens long
+  (`review` against `set_up_shipping_address`) and a plain sum of log-probabilities is
+  systematically biased towards short ones — a property of the scoring rule, not of the model.
+  The unnormalised sum comes free from the same forward pass and is recorded next to it.
+
+The prompt is a hyper-parameter even though it does not look like one: reword it and the
+number moves. The exact text is written to `results/prompts/` and its sha256 goes into every
+run record, so a change is visible in the table rather than being an unexplained shift.
+
+### Two silent failures, and the one check that catches both
+
+A wrong `task_type`, and a classification head left out of `modules_to_save`. Both train
+successfully, both produce a falling loss, and both are only visible when what was written to
+disk is read back in a fresh process — the head comes back randomly initialised and the score
+collapses with no error message anywhere. "No exception was raised" does not test this.
+
+The check that does is a **save, load from scratch, predict round trip** with an exact
+comparison of the predicted labels, and it is why the debug run exists at all: it costs ten
+minutes on a 0.6B model and an hour of wasted training on a 1.7B one. Predicted labels are
+compared rather than logits, because half-precision arithmetic is not bit-reproducible across
+two loads and demanding identical floats would fail for a reason unrelated to what is being
+tested.
+
+### What is in git and what is not
+
+Adapters go to Drive, one directory per run; git gets the run's JSON record. An adapter is a
+training output, not code.
+
+The day-2 rule — no per-run JSON beside the summary table, because every field in it was
+already a column — is kept, and its *reason* is what makes the GPU runs an exception. A
+training run carries two things no summary table can hold, the per-step loss curve and the
+per-epoch validation score, and re-creating them costs compute units rather than a second. So
+`results/metrics/run_XX.json` is the archive and `gpu_runs_summary.csv` is a view generated
+from it. Run numbers are never reused, including for runs that failed: a run that disappeared
+is a run that will be run again.

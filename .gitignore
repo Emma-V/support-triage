@@ -104,6 +104,11 @@ nltk_data/
 mlruns/
 wandb/
 
+# LoRA adapters. On Colab these go to Drive; _local_runs/ is the fallback the
+# training notebook uses when it is not running in Colab. An adapter is a
+# training OUTPUT, not code - the repo keeps the run's JSON record instead.
+_local_runs/
+
 # ===== Results =====
 # results/ IS kept in git (small figures and metrics = part of the documentation
 # for submission), but without temporary/huge files:
