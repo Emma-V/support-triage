@@ -85,18 +85,22 @@ Two smaller points, both verified against the file rather than the documentation
 
 ### What is in git and what is not
 
-Nothing under `data/` is committed except the `.gitkeep` markers and
-`data/processed/split_manifest.json`.
+Everything under `data/processed/` is committed - the six split CSVs, the corpus
+registry and the manifest, 6 MB in total. The raw file is not.
 
 - `data/raw/` - fetched from HuggingFace on demand and not kept on disk (19 MB,
   gitignored). `load_raw()` re-downloads it when it is missing, `verify_raw()`
   raises if the shape moved, and the manifest stores its sha256 - so the integrity
   guarantee lives in the manifest rather than in a local copy of the file.
-- `data/processed/{clean,naive}/*.csv` - regenerated deterministically from the
-  frozen seed, gitignored.
-- `data/processed/full_corpus.csv` - regenerated with the splits, gitignored. The
-  registry of **every** raw row: its template family, the split side that family
-  landed on, and role flags (`is_representative`, `is_exact_duplicate`). Stage 1
+- `data/processed/{clean,naive}/*.csv` - **committed** (3.4 MB). They are
+  regenerated deterministically from the frozen seed, so in principle the repo
+  could hold the seed alone - but only on a machine with the pinned versions
+  installed, and a dataset a reader cannot open is not a reproducible one. 3.4 MB
+  buys a clone that runs.
+- `data/processed/full_corpus.csv` - **committed** (2.8 MB), regenerated with the
+  splits. The registry of **every** raw row: its template family, the split side
+  that family landed on, and role flags (`is_representative`,
+  `is_exact_duplicate`). Stage 1
   never reads it; it exists so stage 2 can build its retrieval corpus from
   train-side families only, and so nothing is silently discarded by the
   one-representative-per-family collapse.
@@ -145,7 +149,9 @@ stratified split differently, which moves every hash and makes
 `verify_against_manifest()` raise. That assert is working as designed, but it is
 easier to install the versions that produced the committed hashes than to debug it.
 
-Then run `notebooks/01_data.ipynb` top to bottom. It downloads the raw file if it is
+The split is already in the repo, so `02_baselines.ipynb` and `03_train.ipynb` run
+on a fresh clone without rebuilding anything. Rebuilding is a check, not a
+prerequisite: run `notebooks/01_data.ipynb` top to bottom. It downloads the raw file if it is
 missing, rebuilds all six CSVs and `full_corpus.csv` from seed 42, and finishes by
 re-reading them off disk and checking their hashes against `split_manifest.json`.
 
