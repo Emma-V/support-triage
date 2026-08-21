@@ -1072,6 +1072,12 @@ def cache_memory_estimate(model, prompt_tokens: int, n_labels: int = 27) -> dict
     Printed by the notebook before the run rather than discovered as a CUDA
     out-of-memory error forty minutes in. If it does not fit, the fix is
     fewer demonstrations - not fast=False, which fits easily and takes hours.
+
+    That last clause was false for one afternoon and is worth keeping honest:
+    fast=False fits easily *because* _score_one_prompt() bounds the logits it
+    asks for. Without that bound the naive path wanted 7.5 GB of vocabulary
+    logits at few-shot length and died inside the self-test - the number this
+    function estimates was never the ceiling that was actually hit.
     """
     config = model.config
     n_layers = config.num_hidden_layers
@@ -1122,7 +1128,11 @@ def _score_one_prompt(model, tokenizer, prompt: str, label_ids: list[list[int]],
 
     with torch.no_grad(), torch.autocast(device.type, dtype=dtype):
         if fast:
-            prompt_out = model(input_ids=prompt_ids, use_cache=True)
+            # logits_to_keep=1: the only row of prompt logits this path reads is the
+            # last one, and running the head over all ~900 prompt positions allocates
+            # a few hundred MB to throw them away. The read below is [-1] either way,
+            # so a version that ignores the argument still gets the right row.
+            prompt_out = model(input_ids=prompt_ids, use_cache=True, logits_to_keep=1)
             prompt_length = prompt_ids.shape[1]
             first_logits = prompt_out.logits[:, -1, :].float().expand(n_labels, -1)
 
@@ -1149,8 +1159,25 @@ def _score_one_prompt(model, tokenizer, prompt: str, label_ids: list[list[int]],
             mask = torch.ones_like(full)
             for i, length in enumerate(lengths):
                 mask[i, prompt_length + length:] = 0
-            out = model(input_ids=full, attention_mask=mask, use_cache=False)
-            logits = out.logits[:, prompt_length - 1:prompt_length - 1 + width, :].float()
+            # logits_to_keep is not a speed tweak here, it is what makes this path
+            # runnable at all. Without it the head is applied at every position of
+            # every sequence: 27 candidates x ~900 few-shot tokens x a 151,936-token
+            # vocabulary in half precision is 7.5 GB, requested as ONE contiguous
+            # block, on top of the model and the 27-way cache the fast path just
+            # built. A T4 refuses, and it refuses inside the self-test - the check
+            # that exists to make this path trustworthy is the thing that dies.
+            # Only the `width` rows that predict candidate tokens are ever read.
+            keep_last = width + 1        # ... of which prompt_length - 1 is the first
+            out = model(input_ids=full, attention_mask=mask, use_cache=False,
+                        logits_to_keep=keep_last)
+            # A transformers that does not know the argument absorbs it into **kwargs
+            # and returns full-length logits - and then `[:, :width]` would silently
+            # read the START of the prompt and score nonsense. Slice according to what
+            # came back, not according to what was asked for.
+            if out.logits.shape[1] == keep_last:
+                logits = out.logits[:, :width, :].float()
+            else:
+                logits = out.logits[:, prompt_length - 1:prompt_length - 1 + width, :].float()
 
     logprobs = torch.log_softmax(logits, dim=-1)
     taken = logprobs.gather(2, candidates.unsqueeze(-1)).squeeze(-1)   # (27, width)
