@@ -1,0 +1,4 @@
+r,alpha,trainable_params,pct_of_model,runtime_seconds,f1_macro_val,accuracy_val,best_epoch
+4,8,858112,0.0498,2830.89,0.9988,0.9991,2
+8,16,1660928,0.0964,2832.69,0.9987,0.9991,3
+16,32,3266560,0.1895,2833.91,0.9994,0.9995,3

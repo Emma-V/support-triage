@@ -1,0 +1,7 @@
+run,base_model,train_rows,accuracy,f1_macro,runtime_seconds
+run_00_debug_0p6b,Qwen/Qwen3-0.6B,512,0.1,0.0767,44.54
+run_01_zeroshot_1p7b,Qwen/Qwen3-1.7B,0,0.5495,0.5297,1114.41
+run_02_fewshot_1p7b,Qwen/Qwen3-1.7B,0,0.8509,0.8265,4269.77
+run_03_lora_r4,Qwen/Qwen3-1.7B,9893,0.9991,0.9988,2830.89
+run_04_lora_r8,Qwen/Qwen3-1.7B,9893,0.9991,0.9987,2832.69
+run_05_lora_r16,Qwen/Qwen3-1.7B,9893,0.9995,0.9994,2833.91
