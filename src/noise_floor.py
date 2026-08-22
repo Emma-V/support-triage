@@ -112,6 +112,44 @@ def noise_floor(values, ddof: int = 1) -> dict:
     }
 
 
+def effective_noise_floor(std: float, per_row: float) -> dict:
+    """The larger of the measured seed spread and what one validation row is worth.
+
+    Two different things limit how small a difference may be believed, and the
+    binding one is whichever is larger.
+
+    The first is training variance, measured across seeds. The second is the
+    resolution of the metric itself: macro-F1 over a finite validation set does
+    not move continuously, and a difference finer than one row changing its
+    answer cannot be expressed at all, let alone trusted.
+
+    This matters in a case that is not hypothetical at 0.999 accuracy: three
+    runs can land on exactly the same score, and the measured standard
+    deviation is then 0.0000. That does not mean there is no noise. It means
+    the noise is below what three runs can resolve, and the metric's own step
+    size is the honest lower bound instead.
+
+    Taking the maximum makes the decision rule strictly MORE conservative - it
+    can only ever make a difference harder to call real, never easier. That is
+    the safe direction, which is what allows this to be settled in advance
+    rather than after seeing which of the two turns out to be larger.
+    """
+    candidates = {"between_seed_std": std, "one_validation_row": per_row}
+    usable = {k: v for k, v in candidates.items()
+              if v is not None and np.isfinite(v) and v > 0}
+    if not usable:
+        raise ValueError(
+            f"neither ruler is usable: {candidates}. With no measured noise and "
+            "no metric granularity there is nothing to judge a gap against.")
+    binding = max(usable, key=usable.get)
+    return {
+        "floor": float(usable[binding]),
+        "binding": binding,
+        "between_seed_std": std,
+        "one_validation_row": per_row,
+    }
+
+
 def metric_granularity(y_true, y_pred, labels: list[str], n_probe: int = 200,
                        seed: int = 0) -> dict:
     """How much macro-F1 moves when exactly one validation row changes answer.
@@ -213,14 +251,36 @@ def decision_rule(sweep: pd.DataFrame, std: float,
                   f"distinguishable from another: the cheapest is chosen, "
                   f"r={chosen}.")
 
+    # How far past the floor the gap actually sits. This does NOT change which
+    # branch is taken - the rule was registered on day 3 and rewriting its
+    # threshold now is precisely the thing the registration exists to prevent.
+    # It annotates the answer instead, because "larger than the floor" and
+    # "comfortably larger than the floor" are different claims and only the
+    # second one should be written in a report as an established difference.
+    ratio = gap / std
+    if not distinguishable:
+        margin_note = ("the gap is inside the floor; there is nothing to "
+                       "establish and the cheapest configuration wins")
+    elif ratio < 2.0:
+        margin_note = (
+            f"MARGINAL: the gap clears the floor by only {ratio:.1f}x, and that "
+            "floor is itself estimated from three runs. The rule's second branch "
+            "is triggered, but a difference this close to its own noise should be "
+            "reported as suggestive and not as an established improvement.")
+    else:
+        margin_note = (f"the gap clears the floor by {ratio:.1f}x, which is "
+                       "comfortable enough to report as a real difference")
+
     return {
-        "rule": ("gap across r vs between-seed std: gap < std -> take the "
-                 "smallest r; gap > std -> take the highest-scoring r"),
-        "registered": "written on day 3, before the standard deviation existed",
+        "rule": ("gap across r vs the noise floor: gap < floor -> take the "
+                 "smallest r; gap > floor -> take the highest-scoring r"),
+        "registered": "written on day 3, before any noise floor existed",
         "gap": gap,
         "std": std,
-        "gap_in_std_units": gap / std,
+        "gap_in_std_units": ratio,
         "distinguishable": bool(distinguishable),
+        "marginal": bool(distinguishable and ratio < 2.0),
+        "margin_note": margin_note,
         "branch_taken": branch,
         "chosen_r": chosen,
         "reason": reason,
