@@ -104,6 +104,14 @@ artifacts/*
 !artifacts/labels.json
 !artifacts/intent2cat.json
 !artifacts/urgency_prior.json
+# The freeze record is a fourth one, and it was missing here until day 4 proved
+# why that matters. 03b writes artifacts/config_freeze.json, prints "COMMIT THESE
+# BEFORE RUNNING THE NEXT CELL", and then lists what `git status` can see - which
+# did not include the freeze, because of the rule four lines above. It was written,
+# it was never committed, and nothing said so. It records which r was chosen and
+# the pre-registered rule that chose it, which is the difference between a decision
+# and three numbers, so it belongs in git for the same reason the other three do.
+!artifacts/config_freeze.json
 *.pkl
 *.pickle
 *.joblib
