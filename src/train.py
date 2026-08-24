@@ -543,11 +543,46 @@ class RunConfig:
     max_grad_norm: float = MAX_GRAD_NORM
     train_seed: int = TRAIN_SEED
     train_rows: int | None = None      # None means "all of them"; the debug run sets it
+
+    # Which frames this run actually saw. These were literals in the run record
+    # until day 5, and the literals were true until day 5: every run before it
+    # trained on clean/train and was selected on clean/val. From day 5 two of
+    # the three runs train elsewhere, and a record naming the wrong split does
+    # not look wrong - it looks like a different finding.
+    trained_on: str = "clean/train"
+    scored_on: str = "clean/val"
+
+    # Set ONLY when the training frame is a subsample, and set to the seed that
+    # drew it. Separate from train_seed on purpose: which rows were drawn and
+    # how the weights were initialised are two different sources of variance,
+    # and reporting one under the other's name is the classic way to describe
+    # different DATA as training noise.
+    subsample_seed: int | None = None
     notes: str = ""
 
     @property
     def lora_alpha(self) -> int:
         return LORA_ALPHA_MULTIPLIER * self.r
+
+    @property
+    def effective_subsample_seed(self) -> int | None:
+        """The seed that decided WHICH ROWS this run trained on, or None.
+
+        There are two ways a run can end up on a subsample, and the record has
+        to name the right seed for both:
+
+        - `train_rows` is set, and train_one_run() draws the slice itself using
+          `train_seed`. That is the debug run, and how the field was derived
+          before day 5.
+        - the frame handed in was already a subsample, drawn elsewhere with its
+          own seed and written to a file. That is `naive_sub`, and `train_rows`
+          is None for it - setting it would make train_one_run() draw AGAIN
+          from the frame it was given, which is precisely the redraw the
+          committed file exists to replace.
+        """
+        if self.subsample_seed is not None:
+            return self.subsample_seed
+        return self.train_seed if self.train_rows else None
 
 
 def _linear_schedule(optimizer, total_steps: int, warmup_steps: int):
@@ -767,8 +802,8 @@ def train_one_run(config: RunConfig, train_frame: pd.DataFrame, val_frame: pd.Da
             "label_level": "intent",
             "train_rows": train["n_rows"],
             "eval_rows": val["n_rows"],
-            "trained_on": "clean/train",
-            "scored_on": "clean/val",
+            "trained_on": config.trained_on,
+            "scored_on": config.scored_on,
             "train_sha256": train_sha,
             "r": config.r,
             "lora_alpha": config.lora_alpha,
@@ -788,7 +823,7 @@ def train_one_run(config: RunConfig, train_frame: pd.DataFrame, val_frame: pd.Da
             "precision": precision,
             "gpu_name": hardware["gpu_name"],
             "split_seed": SPLIT_SEED,
-            "subsample_seed": config.train_seed if config.train_rows else None,
+            "subsample_seed": config.effective_subsample_seed,
             "train_seed": config.train_seed,
             **counts,
         },
