@@ -1,0 +1,62 @@
+{
+  "macro_f1": {
+    "n": 3,
+    "mean": 0.9987666666666667,
+    "std": 0.00011547005383791244,
+    "min": 0.9987,
+    "max": 0.9989,
+    "range": 0.00019999999999997797
+  },
+  "accuracy": {
+    "n": 3,
+    "mean": 0.9991,
+    "std": 0.0,
+    "min": 0.9991,
+    "max": 0.9991,
+    "range": 0.0
+  },
+  "granularity": {
+    "base_f1_macro": 0.998894,
+    "n_probed": 200,
+    "mean_drop_per_row": 0.000492,
+    "min_drop": 0.000306,
+    "max_drop": 0.000953
+  },
+  "decision": {
+    "rule": "gap across r vs the noise floor: gap < floor -> take the smallest r; gap > floor -> take the highest-scoring r",
+    "registered": "written on day 3, before any noise floor existed",
+    "gap": 0.0006999999999999229,
+    "std": 0.000491512050948098,
+    "gap_in_std_units": 1.4241766781702785,
+    "distinguishable": true,
+    "marginal": true,
+    "margin_note": "MARGINAL: the gap clears the floor by only 1.4x, and that floor is itself estimated from three runs. The rule's second branch is triggered, but a difference this close to its own noise should be reported as suggestive and not as an established improvement.",
+    "branch_taken": 2,
+    "chosen_r": 16,
+    "reason": "the gap across r (0.0007) is larger than the between-seed standard deviation (0.0005), so the difference survives training variance: r=16 leads by 1.4 standard deviations."
+  },
+  "effective_floor": {
+    "floor": 0.000491512050948098,
+    "binding": "one_validation_row",
+    "between_seed_std": 0.00011547005383791244,
+    "one_validation_row": 0.000491512050948098
+  },
+  "measured_at_r": 8,
+  "seeds": [
+    42,
+    43,
+    44
+  ],
+  "provenance": {
+    "recovered_by": "tools/rebuild_freeze_record.py",
+    "from": "notebooks/03b_noise_floor.ipynb stored outputs",
+    "committed_at": "adaebe9",
+    "verified": "the rebuilt freeze matches the 2,000-character prefix 03b printed, character for character",
+    "precision_note": "granularity.mean_drop_per_row is the six decimals 03b printed; the full-precision value it was computed with survives as config_freeze.json's one_val_row_is_worth",
+    "not_recovered": [
+      "val_logits_r8_seed*.npy",
+      "val_predictions_r8_seed*.csv",
+      "the full run_06/07/08 records"
+    ]
+  }
+}

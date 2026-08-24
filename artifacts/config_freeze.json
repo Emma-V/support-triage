@@ -1,0 +1,81 @@
+{
+  "frozen_at": "2026-08-22T17:52:25+00:00",
+  "frozen_from_run": "run_05_lora_r16",
+  "selection": {
+    "rule": "gap across r vs the noise floor: gap < floor -> take the smallest r; gap > floor -> take the highest-scoring r",
+    "registered": "written on day 3, before any noise floor existed",
+    "gap_across_r": 0.0006999999999999229,
+    "between_seed_std": 0.000491512050948098,
+    "distinguishable": true,
+    "chosen_r": 16,
+    "reason": "the gap across r (0.0007) is larger than the between-seed standard deviation (0.0005), so the difference survives training variance: r=16 leads by 1.4 standard deviations."
+  },
+  "noise_floor": {
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "metric": "f1_macro on clean/val",
+    "n": 3,
+    "mean": 0.9987666666666667,
+    "std": 0.00011547005383791244,
+    "min": 0.9987,
+    "max": 0.9989,
+    "range": 0.00019999999999997797,
+    "measured_at_r": 8,
+    "one_val_row_is_worth": 0.000491512050948098,
+    "effective_floor": {
+      "floor": 0.000491512050948098,
+      "binding": "one_validation_row",
+      "between_seed_std": 0.00011547005383791244,
+      "one_validation_row": 0.000491512050948098
+    }
+  },
+  "model": {
+    "base_model": "Qwen/Qwen3-1.7B",
+    "task_type": "SEQ_CLS",
+    "r": 16,
+    "lora_alpha": 32,
+    "lora_dropout": 0.05,
+    "target_modules": [
+      "q_proj",
+      "v_proj"
+    ],
+    "modules_to_save": [
+      "score"
+    ]
+  },
+  "training": {
+    "learning_rate": 0.0002,
+    "epochs": 3,
+    "batch_size": 32,
+    "grad_accum": 1,
+    "warmup_ratio": 0.06,
+    "weight_decay": 0.01,
+    "precision": "bf16",
+    "max_length": 32,
+    "selection_metric": "f1_macro",
+    "train_seed_of_frozen_run": 42
+  },
+  "data": {
+    "trained_on": "clean/train",
+    "scored_on": "clean/val",
+    "train_rows": 9893,
+    "eval_rows": 2120,
+    "train_sha256": "6d674bcb7d8fd254705cf847ebeefae9e3f9e356f385bb3c5b365819de78d177",
+    "split_seed": 42,
+    "manifest_clean_train_sha256": "6d674bcb7d8fd254705cf847ebeefae9e3f9e356f385bb3c5b365819de78d177",
+    "labels": "artifacts/labels.json, order frozen"
+  },
+  "hardware": {
+    "gpu_name": "Tesla T4",
+    "precision": "bf16"
+  },
+  "still_open": [
+    "the confidence threshold for routing - an operational decision, not a training hyper-parameter, and calibratable later",
+    "which slices and figures the analysis cuts"
+  ],
+  "breaking_this_freeze": "requires a written note naming what changed and why; runs after such a change belong to configuration 2 and are not comparable to the ones before it",
+  "smoke": false
+}
