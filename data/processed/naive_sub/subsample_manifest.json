@@ -1,0 +1,11 @@
+{
+  "what": "naive/train subsampled to clean/train's row count - the size control for every naive-versus-clean comparison",
+  "drawn_from": "naive/train",
+  "drawn_from_sha256": "0354eee23ff3b99681ffecf4eefe46d5037953ecafa779a28380372340f31058",
+  "subsample_seed": 42,
+  "stratified_on": "intent",
+  "n_rows": 9893,
+  "sha256": "d1a12470f92549af7d88c58030a7ec68f879e1b581b2fbd6887396aa9852f14d",
+  "drawn_by": "src.baselines.subsample_stratified, the day 2 call",
+  "not_in_split_manifest": "this is a subset of a split rather than a split, and day 1's manifest is settled - rewriting it would move hashes that the assert at the top of every notebook depends on"
+}

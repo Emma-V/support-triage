@@ -95,6 +95,18 @@ EXPECTED_N_CATEGORIES = 11
 # variance" that is really "different data".
 SPLIT_SEED = 42
 
+# The subsample seed - a THIRD thing called "seed" in this project, and named
+# apart from the other two for the same reason they are named apart from each
+# other. It decides which 9,893 of naive/train's 17,187 rows form the size
+# control. Day 2 used this value; changing it silently would produce a frame
+# with the right row count, the right class balance and the wrong rows.
+SUBSAMPLE_SEED = 42
+
+# The size control's own directory. It is not a split - it is a subset of one -
+# so it lives beside clean/ and naive/ with its own manifest rather than being
+# written into split_manifest.json, whose hashes five other asserts depend on.
+NAIVE_SUB_DIR = "naive_sub"
+
 # 70 / 15 / 15. train_test_split cannot do three-way, so we split twice:
 # first 70/30, then cut the 30 in half.
 HOLDOUT_FRACTION = 0.30
@@ -317,6 +329,102 @@ def load_all_splits(processed_dir: Path | str = DEFAULT_PROCESSED_DIR,
         name: {part: load_split(name, part, processed_dir) for part in SPLIT_PARTS}
         for name in SPLIT_NAMES
     }
+
+
+# -------------------------------------------------------------------------
+# 2b. THE SIZE CONTROL
+# -------------------------------------------------------------------------
+# naive/train has 17,187 rows and clean/train has 9,893, so every comparison
+# between the two protocols can be answered with "you simply had less data".
+# naive_sub is naive/train cut down to clean/train's row count, which removes
+# that explanation and leaves one variable: whether the training set contains
+# siblings of the evaluation sentences.
+#
+# Day 2 drew it inside 02_baselines.ipynb and never wrote it anywhere. That was
+# survivable while it fed a two-second TF-IDF fit. It stops being survivable
+# the moment a MODEL trains on it and other numbers are compared against that
+# model: a frame redrawn next week has the right row count, the right class
+# balance and the wrong rows, and it produces a believable score that cannot be
+# compared to day 2's. So it becomes a file, with a hash.
+
+def build_naive_sub(naive_train: pd.DataFrame, clean_train: pd.DataFrame,
+                    seed: int = SUBSAMPLE_SEED) -> pd.DataFrame:
+    """Draw the size control: naive/train, cut to clean/train's row count.
+
+    The target size is read from clean/train rather than written as 9893, so
+    the two frames cannot drift apart without this raising. The draw itself is
+    baselines.subsample_stratified - the same function day 2 called, not a
+    reimplementation of it, because a second implementation of "draw n rows
+    keeping the class proportions" is a second set of rows.
+    """
+    from .baselines import subsample_stratified
+    return subsample_stratified(naive_train, n_rows=len(clean_train), seed=seed)
+
+
+def write_naive_sub(frame: pd.DataFrame, manifest: dict,
+                    processed_dir: Path | str = DEFAULT_PROCESSED_DIR,
+                    seed: int = SUBSAMPLE_SEED) -> dict:
+    """Write naive_sub/train.csv and its own small manifest. Returns the manifest.
+
+    `drawn_from_sha256` is the fingerprint of the frame it was drawn from, so
+    the control cannot outlive the split it controls for: if naive/train is
+    ever rebuilt differently, this file's provenance stops matching and
+    load_naive_sub() says so.
+    """
+    directory = Path(processed_dir) / NAIVE_SUB_DIR
+    directory.mkdir(parents=True, exist_ok=True)
+    frame.to_csv(directory / "train.csv", index=False, encoding="utf-8")
+
+    sub_manifest = {
+        "what": "naive/train subsampled to clean/train's row count - the size "
+                "control for every naive-versus-clean comparison",
+        "drawn_from": "naive/train",
+        "drawn_from_sha256": manifest["splits"]["naive"]["train"]["sha256"],
+        "subsample_seed": seed,
+        "stratified_on": "intent",
+        "n_rows": len(frame),
+        "sha256": sha256_of_split(frame),
+        "drawn_by": "src.baselines.subsample_stratified, the day 2 call",
+        "not_in_split_manifest": (
+            "this is a subset of a split rather than a split, and day 1's "
+            "manifest is settled - rewriting it would move hashes that the "
+            "assert at the top of every notebook depends on"),
+    }
+    write_json(sub_manifest, directory / "subsample_manifest.json")
+    return sub_manifest
+
+
+def load_naive_sub(processed_dir: Path | str = DEFAULT_PROCESSED_DIR) -> pd.DataFrame:
+    """Read the size control, verifying its sha256 on the way in.
+
+    Verified here rather than in a notebook cell because the failure being
+    guarded against is silent. A naive_sub with the wrong rows trains fine,
+    scores plausibly, and produces a size control that controls for nothing -
+    there is no exception anywhere to notice.
+    """
+    directory = Path(processed_dir) / NAIVE_SUB_DIR
+    path, manifest_path = directory / "train.csv", directory / "subsample_manifest.json"
+    if not path.exists() or not manifest_path.exists():
+        raise FileNotFoundError(
+            f"{path} or its manifest is missing. Build it with "
+            "`python tools/build_naive_sub.py`, which verifies the draw against "
+            "day 2's committed scores before writing.")
+
+    frame = pd.read_csv(path, encoding="utf-8")
+    sub_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    actual = sha256_of_split(frame)
+    if actual != sub_manifest["sha256"]:
+        raise AssertionError(
+            f"{path} does not match its manifest.\n"
+            f"  on disk   {actual}\n"
+            f"  manifest  {sub_manifest['sha256']}\n"
+            "These are not the rows day 2 measured, so nothing scored against "
+            "them is comparable to day 2's numbers. Rebuild with "
+            "tools/build_naive_sub.py.")
+    if len(frame) != sub_manifest["n_rows"]:
+        raise AssertionError(
+            f"{path} has {len(frame)} rows, manifest says {sub_manifest['n_rows']}")
+    return frame
 
 
 # =========================================================================

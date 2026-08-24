@@ -78,6 +78,18 @@ data/processed/naive/*
 !data/processed/naive/*.csv
 !data/processed/full_corpus.csv
 
+# naive_sub/ - the size control, admitted with the same three-line pattern and
+# for the same reason. It is naive/train cut to clean/train's row count, and it
+# is committed rather than redrawn because a redraw has the right row count,
+# the right class balance and the wrong rows: nothing raises, and every number
+# measured against it stops being comparable to day 2's. Its manifest is
+# exempted by full filename, not by admitting the directory - see the warning
+# at the top of this section.
+!data/processed/naive_sub/
+data/processed/naive_sub/*
+!data/processed/naive_sub/*.csv
+!data/processed/naive_sub/subsample_manifest.json
+
 # Heavy data formats, anywhere in the project
 *.parquet
 *.feather
