@@ -118,14 +118,23 @@ def check_notebook_is_valid() -> None:
     n_code = sum(1 for c in nb.cells if c.cell_type == "code")
     ok(f"nbformat validates - {len(nb.cells)} cells, {n_code} of them code")
 
-    # Outputs are stripped on purpose: this notebook has not been run yet, and a
-    # committed output would be a number from somewhere other than the GPU run.
-    with_output = [i for i, c in enumerate(nb.cells)
-                   if c.cell_type == "code" and c.get("outputs")]
-    assert not with_output, (
-        f"cells {with_output} carry stored outputs, but 03d has not been run. "
-        "An output committed before the run is a number with no run behind it.")
-    ok("no stored outputs - nothing is claimed before the run happens")
+    # Before the run this asserted that no cell carried an output: a number
+    # committed ahead of the run it claims to come from is a number with nothing
+    # behind it. 03d has since been run on 2026-08-24 and its outputs ARE the
+    # surviving record of it - the run records died with the Colab runtime, and
+    # the notebook is what is left. So the check reports rather than asserts, and
+    # what it reports is whether the run went top to bottom: an execution_count
+    # gap means cells ran out of order, which is the failure this can still see.
+    executed = [c.execution_count for c in nb.cells
+                if c.cell_type == "code" and c.get("outputs")]
+    if not executed:
+        ok("no stored outputs - nothing is claimed before the run happens")
+    elif executed == sorted(e for e in executed if e is not None) == list(
+            range(1, len(executed) + 1)):
+        ok(f"stored outputs from one top-to-bottom run: cells 1-{len(executed)}, in order")
+    else:
+        print(f"  [note] stored outputs with execution counts {executed} - "
+              "not a single top-to-bottom run, so read them in that light")
 
 
 def check_plan_is_coherent(freeze: dict) -> None:

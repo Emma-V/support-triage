@@ -1292,12 +1292,21 @@ def score_labels(model, tokenizer, texts, labels: list[str], precision: str,
         "pred_sum_logprob": [labels[i] for i in sums.argmax(axis=1)],
         "confidence": np.exp(normalised.max(axis=1)),
         "n_distinct_predictions": int(len(set(normalised.argmax(axis=1)))),
+        # The full (rows x 27) score matrix, not only the argmax. It costs
+        # nothing here and cannot be rebuilt later without paying for the whole
+        # forward pass again - which is precisely what happened on day 3, where
+        # keeping only the predictions is why the untrained model could not
+        # enter the confidence analysis afterwards. It is a log-prob per token,
+        # not a probability, so it is NOT interchangeable with a head's logits;
+        # anything reading it has to say which of the two it has.
+        "label_scores": normalised,
     }
 
 
 def label_scoring_record(name: str, scored: dict, y_true, labels: list[str],
                          model_name: str, hardware: dict, shots: int,
-                         fewshot_seed: int | None, notes: str = "") -> dict:
+                         fewshot_seed: int | None, notes: str = "",
+                         scored_on: str = "clean/val") -> dict:
     """One run record for a zero-shot or few-shot measurement.
 
     Built here rather than in the notebook so that the two "before" runs and
@@ -1310,6 +1319,12 @@ def label_scoring_record(name: str, scored: dict, y_true, labels: list[str],
     other is recorded because it came free from the same forward pass and
     because a reader is entitled to see that the choice was not the flattering
     one.
+
+    `scored_on` was the literal "clean/val" until day 5, and the literal was
+    true until day 5: the "before" number had only ever been measured on the
+    validation set. Day 5 measures it again on `clean/test` so that the report's
+    before-and-after sit on the same test rows, and a record that still claimed
+    clean/val would not look wrong - it would look like the other measurement.
     """
     headline = scored["pred_" + LABEL_SCORING]
     metrics = E.evaluate_predictions(y_true, headline, labels)
@@ -1325,7 +1340,7 @@ def label_scoring_record(name: str, scored: dict, y_true, labels: list[str],
             "train_rows": 0,               # nothing was trained
             "eval_rows": len(headline),
             "trained_on": "-",
-            "scored_on": "clean/val",
+            "scored_on": scored_on,
             "shots": shots,
             "fewshot_seed": fewshot_seed,
             "fewshot_source": "clean/train" if shots else "-",

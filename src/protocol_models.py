@@ -249,23 +249,42 @@ def score_from_logits(logits, frame: pd.DataFrame, labels: list[str],
     return metrics, rows
 
 
-def save_val_outputs(name: str, logits, rows: pd.DataFrame,
-                     metrics_dir: Path | str) -> list[Path]:
-    """The logit matrix and the per-row predictions, for one run's validation set.
+def save_row_outputs(name: str, logits, rows: pd.DataFrame,
+                     metrics_dir: Path | str, part: str = "val") -> list[Path]:
+    """The logit matrix and the per-row predictions, for one run on one split.
 
     The logits are kept as well as the predictions because they are what the
     confidence and calibration work reads, and an argmax cannot be un-taken.
     Day 3 kept only the argmax, which is why the untrained model could not
     enter the confidence analysis afterwards.
+
+    `part` is in the filename rather than left implicit because from day 5 the
+    same adapter is scored on more than one split, and two files that differ
+    only in which rows produced them are the pair most worth being unable to
+    confuse. It is also the entire reason day 6 needs no GPU: with
+    `test_predictions_*.csv` on disk the analysis is a CPU job over CSVs, and
+    without them it is a re-opening of the test set.
     """
     metrics_dir = Path(metrics_dir)
     metrics_dir.mkdir(parents=True, exist_ok=True)
 
-    logits_path = metrics_dir / f"val_logits_{name}.npy"
-    rows_path = metrics_dir / f"val_predictions_{name}.csv"
+    logits_path = metrics_dir / f"{part}_logits_{name}.npy"
+    rows_path = metrics_dir / f"{part}_predictions_{name}.csv"
     np.save(logits_path, np.asarray(logits, dtype=np.float32))
     rows.to_csv(rows_path, index=False, encoding="utf-8")
     return [logits_path, rows_path]
+
+
+def save_val_outputs(name: str, logits, rows: pd.DataFrame,
+                     metrics_dir: Path | str) -> list[Path]:
+    """save_row_outputs() on the validation split. Day 5 step 18a's caller.
+
+    Kept as its own name because `03d_protocol_models.ipynb` ran against it and
+    is committed with its outputs: the notebook that produced run_09 and run_10
+    should still be re-runnable as written, and a rename would leave a stored
+    output whose code no longer exists.
+    """
+    return save_row_outputs(name, logits, rows, metrics_dir, part="val")
 
 
 # =========================================================================
