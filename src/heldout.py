@@ -1,51 +1,53 @@
 """
-Day 5, step 18b: the test set opens once, and this module is what "once" means.
+The held-out test set is opened exactly once, and this module defines what
+"once" means.
 
-Every other module in src/ describes a computation. This one describes a
-PROCEDURE, and the difference is the point. The scores it produces are not more
-accurate than the validation scores next to them - they are 2,120 rows measured
-by the same code that measured 2,120 other rows yesterday. What makes them worth
-more is a claim about history: that nothing in this project was chosen after
-seeing them. That claim is not verifiable from the numbers, only from the order
-in which things happened, so the order has to be written down somewhere that a
-reader can check.
+Every other module in src/ describes a computation; this one describes a
+procedure, and the distinction matters. The scores it produces are not
+inherently more accurate than the validation scores measured earlier -
+they are rows scored by the same code that scored the validation rows.
+What makes them worth more is a claim about history: that nothing in this
+project was chosen after seeing them. That claim cannot be verified from
+the numbers alone, only from the order in which things happened, so the
+order is recorded here in a form a reader can check.
 
 --------------------------------------------------------------------------
-THE THREE THINGS THAT LIVE HERE, AND WHY EACH IS IN A MODULE
+THE THREE THINGS DEFINED HERE, AND WHY EACH NEEDS ITS OWN MODULE
 
-1. `EVALUATION_PLAN` - the exact seven rows that will be measured. In a module
-   rather than a cell so that the run list is a commit with a date on it, made
-   before the session that spends it. "I decided in advance" and "git says I
-   decided in advance" are different statements, and only one of them survives
-   a sceptical reader.
+1. `EVALUATION_PLAN` - the exact seven rows that will be measured. Defined
+   in a module rather than a notebook cell so that the run list is a commit
+   with a date on it, made before the session that spends it. "The plan was
+   fixed in advance" and "git history shows the plan was fixed in advance"
+   are different claims, and only the latter survives scrutiny.
 
-2. The seal. `assert_seal_absent()` refuses to open a test set that has already
-   been opened, unless a written reason is supplied - and then records that
-   reason in the artifact. This is decision ז4 as code: a technical failure
-   justifies a re-run and a disappointing number does not, and the difference
-   between them is a sentence somebody has to type and commit. A second opening
-   is not prevented, which would be dishonest engineering - it is made
-   impossible to perform silently.
+2. The seal. `assert_seal_absent()` refuses to open a test set that has
+   already been opened unless a written reason is supplied, and records
+   that reason in the artifact. The rule this encodes is that a technical
+   failure justifies a re-run and a disappointing result does not, and the
+   distinction between them is a sentence that has to be typed and
+   committed. A second opening is not prevented outright, which would be
+   unrealistic - it is made impossible to perform silently.
 
-3. `readings()` - the three subtractions the table exists to support, each
-   carrying whether the noise floor applies to it. Written here because the
-   dangerous one is reading 1: the headline comparison spans two DIFFERENT test
-   sets, so the between-seed floor measured on one of them does not govern it,
-   and the natural thing to do with a floor in a table is apply it to every row.
+3. `readings()` - the three differences the results table exists to
+   support, each carrying whether the noise floor applies to it. The
+   dangerous case is the headline comparison, which spans two different
+   test sets: the between-seed floor measured on one of them does not
+   govern it, and applying a floor uniformly to every row in a table is
+   the natural mistake to make.
 
 --------------------------------------------------------------------------
 WHAT THIS MODULE DELIBERATELY DOES NOT DO
 
-It does not read a test file. Every function here takes frames it is handed.
-The reading happens in `notebooks/04_test.ipynb`, in one place, after the
-journal entry that says it is about to happen - and `tools/smoke_heldout.py`
-checks that this file contains no path to one.
+It does not read a test file. Every function here takes frames it is
+handed. Reading happens in `notebooks/04_test.ipynb`, in one place, after
+the log entry recording that it is about to happen - and
+`tools/smoke_heldout.py` checks that this file contains no path to one.
 
-HOUSE RULES, as everywhere else in src/: no prints, no plots, no writing to
-results/ - except save_test_outputs() and seal(), which exist to write files and
-say so in their names. Scoring goes through src/evaluate.py, never a
-re-implementation, so today's numbers are produced by the identical function
-that produced day 2's TF-IDF baselines.
+Module conventions, as elsewhere in src/: no prints, no plots, no writes to
+results/ - except save_test_outputs() and seal(), which exist to write
+files and say so in their names. Scoring goes through src/evaluate.py
+rather than a re-implementation, so these numbers are produced by the
+identical function that produced the TF-IDF baselines.
 """
 
 from __future__ import annotations
@@ -65,16 +67,15 @@ from . import protocol_models as P
 # =========================================================================
 # 1. THE RUN LIST
 # =========================================================================
-# Decisions ז1 and ז2, as data. The order is the order of the table in the
-# report: the cheap models first and the headline in the middle, so that a
-# reader meets the number the fine-tuned model has to beat before meeting the
-# number it got.
+# The run list, encoded as data. Ordered to match the table in the report:
+# cheap models first and the headline in the middle, so a reader meets the
+# number the fine-tuned model has to beat before meeting the number it got.
 #
-# `same_test_rows_as_headline` is the field that does the real work. Four of
-# these seven rows are measured on `clean/test` and three are not, and every
-# difference taken between rows on different evaluation sets is a difference
-# that includes "these are not the same sentences". Carrying that as a field
-# means the readings below cannot forget it.
+# `same_test_rows_as_headline` is the field that does the real work. Four
+# of these seven rows are measured on `clean/test` and three are not, and
+# any difference taken between rows measured on different test sets also
+# includes the fact that they are not the same sentences. Carrying this as
+# a field means the readings below cannot overlook it.
 
 EVALUATION_PLAN = (
     {
@@ -99,8 +100,8 @@ EVALUATION_PLAN = (
         "needs_gpu": False,
         "role": "baseline",
         "why": "the linear baseline in the independent word (1,2) feature space, "
-               "the same configuration day 2 reported as tfidf_clean. This is what "
-               "the fine-tuned model has to be worth more than.",
+               "the same configuration reported as tfidf_clean in the baseline "
+               "results. This is what the fine-tuned model has to be worth more than.",
     },
     {
         "key": "zero_shot",
@@ -137,9 +138,9 @@ EVALUATION_PLAN = (
         "test": "naive/test",
         "needs_gpu": True,
         "role": "protocol",
-        "why": "what this project would have reported without day 1 - an ordinary "
-               "random split, end to end. Not a better or worse model: a different "
-               "protocol's headline.",
+        "why": "what this project would report under an ordinary random split, "
+               "end to end, without the near-duplicate family control. Not a "
+               "better or worse model: a different protocol's headline.",
     },
     {
         "key": "naive_sub",
@@ -163,7 +164,7 @@ EVALUATION_PLAN = (
         "test": "clean/test",
         "needs_gpu": True,
         "role": "control",
-        "why": "THE CONTROL, and not a performance number. Same test rows as the "
+        "why": "the control, and not a performance number. Same test rows as the "
                "headline, same training-set size as the headline, and the only "
                "thing that moves is whether the training set was allowed to "
                "contain siblings of those test rows. Reported as a control, with "
@@ -183,11 +184,12 @@ HEADLINE_TEST = PLAN_BY_KEY[HEADLINE_KEY]["test"]
 
 
 def same_test_rows_as_headline(key: str) -> bool:
-    """Is this row measured on the same sentences as the headline row?
+    """Reports whether this row is measured on the same sentences as the headline row.
 
-    The one question that decides whether a difference between two rows can be
-    judged against the noise floor at all. Kept as a function of the plan rather
-    than a hand-maintained field so that it cannot drift away from `test`.
+    This single question decides whether a difference between two rows can
+    be judged against the noise floor at all. Implemented as a function of
+    the plan rather than a hand-maintained field, so it cannot drift away
+    from `test`.
     """
     return PLAN_BY_KEY[key]["test"] == HEADLINE_TEST
 
@@ -195,9 +197,10 @@ def same_test_rows_as_headline(key: str) -> bool:
 def model_keys() -> list[str]:
     """The distinct adapters this plan needs, in the order they are first used.
 
-    Distinct, because `naive_sub` appears in two rows and loading a 1.7B base
-    model twice to score two frames is four minutes of nothing. The notebook
-    loads each key once and scores every row that names it.
+    Distinct, because `naive_sub` appears in two rows and loading a 1.7B
+    base model twice to score two frames would waste several minutes for no
+    benefit. The notebook loads each key once and scores every row that
+    names it.
     """
     return list(dict.fromkeys(row["model"] for row in EVALUATION_PLAN
                               if row["kind"] == "model"))
@@ -212,11 +215,12 @@ def rows_for_model(model_key: str) -> list[dict]:
 def adapter_run_name(model_key: str, freeze: dict, r: int) -> str:
     """Which run directory holds this model's adapter.
 
-    The clean model's name is read from the freeze record rather than written
-    down, because the freeze is the thing that decides which run is the frozen
-    one; a literal here could disagree with it, and the disagreement would be
-    invisible - a plausible adapter, a plausible score, and the wrong model.
-    The other two are built by the same function that named them on day 5.
+    The clean model's name is read from the freeze record rather than
+    hardcoded, because the freeze record is what decides which run is the
+    frozen one; a literal here could disagree with it, and the
+    disagreement would be invisible - a plausible adapter, a plausible
+    score, and the wrong model. The other two are built by
+    `protocol_models.run_name`, the same function that named them originally.
     """
     if model_key == "clean":
         return freeze["frozen_from_run"]
@@ -226,10 +230,10 @@ def adapter_run_name(model_key: str, freeze: dict, r: int) -> str:
 def plan_fingerprint() -> str:
     """A hash of the run list as it stands in this file.
 
-    Recorded in the seal so that the plan which ran and the plan which was
-    committed can be compared later by a reader who was not here. If the two
-    differ, the plan was edited between the commit and the run - which is
-    allowed, and is exactly the thing that has to be visible.
+    Recorded in the seal so the plan that ran and the plan that was
+    committed can be compared later by a reader who was not present. If
+    the two differ, the plan was edited between the commit and the run -
+    which is allowed, and is exactly the thing that has to be visible.
     """
     payload = json.dumps(EVALUATION_PLAN, sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
@@ -251,18 +255,20 @@ def plan_frame() -> pd.DataFrame:
 # =========================================================================
 # 2. THE SEAL
 # =========================================================================
-# Decision ז4, made mechanical. The rule written before any number existed is
-# that a technical failure justifies re-opening the test set and a disappointing
-# result does not. A rule like that is worth exactly as much as the friction
-# behind it, and prose in a work log has none: re-running a notebook is one
-# keystroke and leaves no trace that it was the second time.
+# The seal makes a rule mechanical rather than a matter of memory: a
+# technical failure justifies re-opening the test set, and a disappointing
+# result does not. A rule like that is worth exactly as much as the
+# friction behind it - stating it in prose has none, since re-running a
+# notebook is one keystroke and leaves no trace that it was the second
+# time.
 #
-# So the first successful run writes an artifact, and the notebook refuses to
-# start when it finds one. Refusing is not the interesting part - `REOPEN_REASON`
-# defeats it in one line, and it is meant to. The interesting part is that
-# defeating it APPENDS to the artifact: the reason, the timestamp, and the
-# scores that were already on the table when the decision to re-run was taken.
-# A second opening stays possible and stops being deniable.
+# So the first successful run writes an artifact, and the notebook refuses
+# to start when it finds one. Refusing outright is not the interesting
+# part - `REOPEN_REASON` defeats it in one line, and it is meant to. The
+# interesting part is that defeating it appends to the artifact: the
+# reason, the timestamp, and the scores that were already on record when
+# the decision to re-run was taken. A second opening stays possible and
+# stops being deniable.
 
 SEAL_FILENAME = "test_seal.json"
 
@@ -276,16 +282,18 @@ def read_seal(path: Path | str) -> dict | None:
 
 
 def assert_seal_absent(path: Path | str, reason: str | None = None) -> dict | None:
-    """Refuse to re-open a sealed test set without a written reason. Returns the seal.
+    """Refuses to re-open a sealed test set without a written reason. Returns the seal.
 
     Returns None on a first opening and the existing seal on a justified
-    re-opening, so the caller can carry the previous scores into the new seal.
+    re-opening, so the caller can carry the previous scores into the new
+    seal.
 
-    The error message quotes the scores the previous run produced on purpose.
-    The failure this guards against is not somebody deciding to cheat; it is
-    somebody re-running a notebook out of habit at the end of a long session and
-    quietly overwriting a number. Being shown the number that already exists is
-    what turns that from a reflex into a decision.
+    The error message deliberately quotes the scores the previous run
+    produced. The failure this guards against is not someone deciding to
+    manipulate a result; it is someone re-running a notebook out of habit
+    at the end of a long session and quietly overwriting a number. Showing
+    the number that already exists turns that from a reflex into a
+    decision.
     """
     seal = read_seal(path)
     if seal is None:
@@ -298,8 +306,8 @@ def assert_seal_absent(path: Path | str, reason: str | None = None) -> dict | No
         raise AssertionError(
             f"The test set was already opened at {seal.get('opened_at')} and these "
             f"numbers exist:\n  {already}\n\n"
-            "Re-running would overwrite them, and decision ז4 was written before any "
-            "of them existed:\n"
+            "Re-running would overwrite them, and the rule for re-opening is fixed "
+            "in advance:\n"
             "  a re-run is justified by a TECHNICAL failure - a crash, a file that was "
             "not written, an adapter that did not load, a metric computed on the wrong "
             "column;\n"
@@ -314,20 +322,20 @@ def assert_seal_absent(path: Path | str, reason: str | None = None) -> dict | No
 def seal(path: Path | str, *, freeze: dict, manifest: dict, records: dict,
          test_frames: dict, reopened_from: dict | None = None,
          reason: str | None = None) -> dict:
-    """Write the receipt: what was opened, when, with which plan, and what came out.
+    """Writes the receipt: what was opened, when, with which plan, and what came out.
 
-    Deliberately a small, dull, machine-readable file rather than a paragraph.
-    The paragraph goes in the report and can be written to say anything; this
-    holds the hashes of the files that were read, the fingerprint of the run
-    list, and the scores, and it is committed in the same commit as the results
-    it describes.
+    Deliberately a small, dull, machine-readable file rather than a
+    paragraph. The paragraph belongs in the report and can be written to
+    say anything; this file holds the hashes of the files that were read,
+    the fingerprint of the run list, and the scores, and is committed in
+    the same commit as the results it describes.
     """
     path = Path(path)
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
     document = {
         "what": "the record that the held-out test set was opened, and of what was "
-                "run in that one session. Day 5, step 18b.",
+                "run in that session.",
         "opened_at": now,
         "opened_by": "notebooks/04_test.ipynb",
         "plan_sha256": plan_fingerprint(),
@@ -352,8 +360,8 @@ def seal(path: Path | str, *, freeze: dict, manifest: dict, records: dict,
             }
             for key, record in records.items()
         },
-        "closed": "from here the test set is closed. Day 6 reads the row-level "
-                  "prediction files in results/metrics/ and changes nothing.",
+        "closed": "from here the test set is closed. Subsequent analysis reads the "
+                  "row-level prediction files in results/metrics/ and changes nothing.",
         "reopenings": list(reopened_from.get("reopenings", [])) if reopened_from else [],
     }
 
@@ -379,13 +387,13 @@ def seal(path: Path | str, *, freeze: dict, manifest: dict, records: dict,
 
 def test_record(key: str, metrics: dict, config: dict, runtime_seconds: float,
                 notes: str = "") -> dict:
-    """One plan row's result, in the shape every other run record in this project has.
+    """Formats one plan row's result in the shape every other run record in this project has.
 
-    Goes through E.run_record so that the seven rows measured today land in the
-    same summary table as the eleven runs measured before them, with the same
-    column names. The plan row's `role` and `why` are copied in, because six
-    weeks from now "why is the naive model being scored on the clean test set"
-    is a question the file should answer by itself.
+    Goes through E.run_record so these seven rows land in the same summary
+    table as the runs measured before them, with the same column names.
+    The plan row's `role` and `why` are copied in, since "why is the naive
+    model being scored on the clean test set" should be a question the
+    file can answer on its own, without external context.
     """
     row = PLAN_BY_KEY[key]
     full_config = {
@@ -404,21 +412,21 @@ def test_record(key: str, metrics: dict, config: dict, runtime_seconds: float,
 
 def save_test_outputs(key: str, logits, rows: pd.DataFrame,
                       metrics_dir: Path | str) -> list[Path]:
-    """The row-level predictions for one plan row, under a name that says test.
+    """Saves the row-level predictions for one plan row, under a name that says test.
 
-    This is the single most important write of day 5, and it is worth being
-    blunt about why: day 6 is a whole day of analysis - confusion pairs, slices,
-    reading twenty errors by hand - and it runs on CPU, from these files. If
-    they are not written, day 6 cannot be done without opening the test set a
-    second time, which would break the rule this entire day is built around. The
-    scores are recoverable from the seal. These are not recoverable from
-    anything.
+    This is the single most important write in the evaluation pipeline:
+    subsequent analysis - confusion pairs, error slices, manual review of
+    misclassified rows - runs on CPU, from these files. If they are not
+    written, that analysis cannot be done without opening the test set a
+    second time, which would break the rule this module is built around.
+    The scores are recoverable from the seal; these files are not
+    recoverable from anything else.
 
-    Named by the PLAN ROW rather than by the run that produced it, which is not
-    a cosmetic choice: `naive_sub` is one adapter and two rows of the table, so
-    a file named after the adapter would be written twice and the second write
-    would silently destroy the control. The plan key is the only name that
-    distinguishes them.
+    Named by the plan row rather than by the run that produced it, which
+    is not a cosmetic choice: `naive_sub` is one adapter and two rows of
+    the table, so a file named after the adapter would be written twice
+    and the second write would silently destroy the control. The plan key
+    is the only name that distinguishes them.
     """
     return P.save_row_outputs(key, logits, rows, metrics_dir, part="test")
 
@@ -428,15 +436,16 @@ def label_score_rows(key: str, scores: np.ndarray, frame: pd.DataFrame,
                      ) -> tuple[dict, pd.DataFrame]:
     """The zero-shot equivalent of score_from_logits(), for label scoring.
 
-    Kept separate from P.score_from_logits() rather than folded into it, because
-    the two take different quantities and a function that silently accepts both
-    is a function that will one day softmax a log-prob. These are mean log-probs
-    per token over 27 candidate strings; they are not a classifier's logits, the
-    softmax of them is not a calibrated probability, and `confidence` here is
-    exp(best log-prob) - a per-token likelihood, on its own scale.
+    Kept separate from P.score_from_logits() rather than folded into it,
+    because the two take different quantities and a function that silently
+    accepts both risks softmaxing a log-prob by mistake. These are mean
+    log-probs per token over 27 candidate strings; they are not a
+    classifier's logits, the softmax of them is not a calibrated
+    probability, and `confidence` here is exp(best log-prob) - a per-token
+    likelihood, on its own scale.
 
-    The metrics come from E.evaluate_predictions all the same, so the score in
-    the table is produced by the identical function as every other row.
+    The metrics still come from E.evaluate_predictions, so the score in the
+    table is produced by the identical function as every other row.
     """
     scores = np.asarray(scores, dtype=float)
     if scores.shape != (len(frame), len(labels)):
@@ -457,13 +466,14 @@ def label_score_rows(key: str, scores: np.ndarray, frame: pd.DataFrame,
 
 def frame_from_predictions(frame: pd.DataFrame, predicted, confidence=None,
                            label_column: str = "intent") -> pd.DataFrame:
-    """The row-level frame for a model with no score matrix - the majority class.
+    """The row-level frame for a model with no score matrix, e.g. the majority class.
 
-    Same columns as score_from_logits() returns, so day 6 reads all seven rows
-    of the table with one function instead of a special case per baseline.
-    `confidence` is genuinely absent for the majority class rather than filled
-    with 1.0: a constant model has no notion of it, and inventing one would put
-    a number in a column that a later confidence analysis would happily average.
+    Same columns as score_from_logits() returns, so downstream analysis
+    reads all seven rows of the table with one function instead of a
+    special case per baseline. `confidence` is genuinely absent for the
+    majority class rather than filled with 1.0: a constant model has no
+    notion of it, and inventing one would put a number in a column that a
+    later confidence analysis would happily average.
     """
     rows = frame.copy().reset_index(drop=True)
     rows["predicted"] = list(predicted)
@@ -480,9 +490,9 @@ def frame_from_predictions(frame: pd.DataFrame, predicted, confidence=None,
 def results_table(records: dict) -> pd.DataFrame:
     """The seven rows, in plan order, as the table that goes in the report.
 
-    Rows that have not been run are dropped rather than shown as NaN, so a table
-    printed after a partial session says what it measured instead of implying a
-    number that does not exist.
+    Rows that have not been run are dropped rather than shown as NaN, so a
+    table printed after a partial session reports what it measured instead
+    of implying a number that does not exist.
     """
     rows = []
     for row in EVALUATION_PLAN:
@@ -501,8 +511,9 @@ def results_table(records: dict) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-# The three subtractions the table exists to support. `same_rows` is not a note
-# on them - it is what decides whether the noise floor may be applied at all.
+# The three differences the table exists to support. `same_rows` is not a
+# note on them - it is what decides whether the noise floor may be applied
+# at all.
 READINGS = (
     {
         "key": "headline_inflation",
@@ -524,7 +535,7 @@ READINGS = (
                "size, and only the leakage moves.",
         "caveat": "expected to be much smaller than reading 1. Reporting the two "
                   "together is what makes the claim credible; reporting only the "
-                  "first would be the thing this project exists to criticise.",
+                  "first would be the thing this project exists to guard against.",
     },
     {
         "key": "what_tuning_bought",
@@ -540,19 +551,21 @@ READINGS = (
 
 
 def judge(delta: float, floor: float, same_rows: bool) -> dict:
-    """Is a difference big enough to report? And is the floor even applicable?
+    """Determines whether a difference is large enough to report, and whether the floor even applies.
 
-    Two different answers, and conflating them is the mistake this exists to
-    prevent. The noise floor measured on day 4 is the spread between three
-    training runs of one configuration scored on ONE evaluation set. It says
-    what a difference has to clear to be a real difference between models
-    measured on those rows. It says nothing at all about a difference between
-    two models measured on two different sets of sentences, because that
-    difference has a second source the floor never sampled.
+    These are two distinct questions, and conflating them is the mistake
+    this function exists to prevent. The noise floor (see
+    notebooks/03b_noise_floor.ipynb) is the spread between three training
+    runs of one configuration scored on one evaluation set. It says what a
+    difference has to clear to count as real between models measured on
+    those rows. It says nothing about a difference between two models
+    measured on two different sets of sentences, since that difference has
+    a second source the floor never sampled.
 
-    So `applicable` is returned separately from `reportable`, and `reportable`
-    is None rather than False when the floor does not apply - "cannot be judged
-    by this instrument" and "judged and found too small" must not print alike.
+    `applicable` is therefore returned separately from `reportable`, and
+    `reportable` is None rather than False when the floor does not apply -
+    "cannot be judged by this instrument" and "judged and found too small"
+    must not print alike.
     """
     result = {
         "delta": round(float(delta), 4),
@@ -562,7 +575,7 @@ def judge(delta: float, floor: float, same_rows: bool) -> dict:
     }
     if not same_rows:
         result["reportable"] = None
-        result["verdict"] = ("the two rows are different sentences - day 4's floor "
+        result["verdict"] = ("the two rows are different sentences - the noise floor "
                              "does not govern this difference")
         return result
 
@@ -575,10 +588,11 @@ def judge(delta: float, floor: float, same_rows: bool) -> dict:
 
 
 def readings(records: dict, floor: float, metric: str = "f1_macro") -> pd.DataFrame:
-    """The three readings, computed, judged, and labelled with their caveats.
+    """Computes, judges, and labels the three readings with their caveats.
 
-    A difference is only computed when both of its rows were actually measured,
-    so a partial session produces a shorter table rather than a wrong one.
+    A difference is only computed when both of its rows were actually
+    measured, so a partial session produces a shorter table rather than a
+    wrong one.
     """
     rows = []
     for reading in READINGS:
@@ -602,18 +616,18 @@ def readings(records: dict, floor: float, metric: str = "f1_macro") -> pd.DataFr
 
 def val_test_gap(val_metrics: dict, test_metrics: dict, floor: float,
                  metric: str = "f1_macro") -> dict:
-    """val minus test for the headline model. A measurement of the METHOD, not the model.
+    """val minus test for the headline model - a measurement of the method, not the model.
 
-    This is the number the guide calls free and says most projects do not bother
-    to report. It costs one subtraction, both halves already exist, and it is
-    the only quantitative evidence available for how hard the hyper-parameter
-    search was pushed against the validation set. A large gap means the choices
-    were fitted to val; a small one means the search was narrow - which it was,
-    on purpose: one axis, three values, and a decision rule registered before
-    the sweep ran.
+    This measurement is inexpensive relative to its reporting value: both
+    halves already exist, so it costs only one subtraction, and it is the
+    only quantitative evidence available for how hard the hyper-parameter
+    search was pushed against the validation set. A large gap would mean
+    the choices were fitted to val; a small one means the search was
+    narrow - which it was, by design: one axis, three values, and a
+    decision rule registered before the sweep ran.
 
-    Reported whichever way it comes out. A gap that embarrasses the method is
-    the one worth having written down in advance.
+    Reported whichever way it comes out. A gap that reflects poorly on the
+    method is the one most worth having recorded in advance.
     """
     gap = val_metrics[metric] - test_metrics[metric]
     return {
@@ -644,16 +658,17 @@ def overlap_report(pairs: dict[str, tuple[pd.DataFrame, pd.DataFrame]],
                    column: str = "instruction") -> pd.DataFrame:
     """Exact text overlap between each training set and each test set it faces.
 
-    One cheap number that makes the control row legible. `naive_sub/train` was
-    drawn from a random split of the deduplicated corpus, and `clean/test` holds
-    family representatives from the same corpus - so a clean/test sentence can
-    sit verbatim in naive_sub/train, and the whole point of the control is what
-    that does to the score. Without this column a reader has to take on trust
-    that the mechanism named in the caption is the mechanism at work.
+    One inexpensive number that makes the control row legible. `naive_sub/train`
+    was drawn from a random split of the deduplicated corpus, and
+    `clean/test` holds family representatives from the same corpus - so a
+    clean/test sentence can sit verbatim in naive_sub/train, and the whole
+    point of the control is what that does to the score. Without this
+    column a reader has to take on trust that the mechanism named in the
+    caption is the mechanism at work.
 
-    Measured on test rows and computed once, in the session that is allowed to
-    read them. It involves no model and decides nothing, which is what keeps it
-    on the right side of the rule.
+    Measured on test rows and computed once, in the session that is
+    allowed to read them. It involves no model and decides nothing, which
+    is what keeps it on the right side of the test-set access rule.
     """
     from . import data as D
 

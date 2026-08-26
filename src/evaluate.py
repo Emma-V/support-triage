@@ -1,29 +1,30 @@
 """
-Measurement. Once the model is trained, how good is it actually?
+Evaluation: how well a trained model performs, measured consistently.
 
-What goes in here:
-- The scores. The main metric is macro-F1: the score is computed separately
-  for each of the 27 intents and then averaged, so a small intent that the
-  model fails on completely is not hidden by the big ones.
+Scope of this module:
+- Scores. The main metric is macro-F1: computed separately for each of the
+  27 intents and then averaged, so a small intent the model fails on
+  completely is not hidden by the large ones.
 - A classification report, a table with a score per intent.
-- A confusion matrix: which intents the model mixes up with each other. For
-  example get_invoice and check_invoice, where the difference is one verb.
-- Error slices: check whether the model fails more on rows with typos, or on
-  rows that are keywords rather than a full sentence. The dataset marks this
-  in the flags column.
+- A confusion matrix: which intents the model mixes up with each other,
+  for example get_invoice and check_invoice, where the difference is one
+  verb.
+- Error slices: whether the model fails more on rows with typos, or on
+  rows that are keyword-only rather than full sentences, using the
+  flags column the dataset provides.
 
-The plots and tables that go into the report come from this file.
+The plots and tables in the report are produced from this file.
 
 --------------------------------------------------------------------------
-Every score in this project comes from THIS module - the majority-class
-baseline, TF-IDF, and tomorrow's fine-tuned Qwen3 alike. That is the point of
-it being its own file. Two runs scored by two implementations are not
-comparable, however similar the two implementations look, and the difference
-usually turns out to be something like an implicit label list.
+Every score in this project is computed by this module - the majority-
+class baseline, TF-IDF, and the fine-tuned Qwen3 alike. That is the reason
+it is a separate file: two runs scored by two different implementations
+are not comparable, however similar the implementations look, and the
+difference usually turns out to be something like an implicit label list.
 
 Nothing here knows what produced the predictions. Everything takes plain
-arrays of labels, so it works identically for a model that reads and a model
-that does not.
+arrays of labels, so it works identically for a model that reads the text
+and one that does not.
 
 No torch, no plots and no disk writes in this file either - it returns
 dictionaries and tables, and the notebook decides what to draw and save.
@@ -44,8 +45,8 @@ from sklearn.metrics import (
     precision_recall_fscore_support,
 )
 
-# Bumped only if the shape of a run record changes. Twelve runs from now, this
-# is what tells you whether an old JSON can be read by the current summary code.
+# Bumped only when the shape of a run record changes, so old JSON records
+# can be checked for compatibility with the current summary code.
 RUN_RECORD_SCHEMA = 1
 
 
@@ -54,28 +55,31 @@ RUN_RECORD_SCHEMA = 1
 # =========================================================================
 
 def evaluate_predictions(y_true, y_pred, labels: list[str]) -> dict:
-    """The scores for one run. `labels` is REQUIRED, and that is the whole point.
+    """Computes the scores for one run. `labels` is required, and that is deliberate.
 
-    Without an explicit label list, scikit-learn averages macro-F1 over the
-    classes it happens to see in y_true or y_pred. If the model never predicts
-    a rare intent AND that intent is thin in the slice being measured, the
-    average silently runs over 26 classes instead of 27. The score goes UP, no
-    warning is printed, and two runs that averaged over different denominators
-    get compared as if they were the same measurement.
+    Without an explicit label list, scikit-learn averages macro-F1 over
+    whichever classes happen to appear in y_true or y_pred. If the model
+    never predicts a rare intent and that intent is thin in the slice being
+    measured, the average silently runs over 26 classes instead of 27. The
+    score increases with no warning printed, and two runs averaged over
+    different denominators are then compared as if they were the same
+    measurement.
 
-    Passing all 27 from artifacts/labels.json is what makes the number
-    comparable across runs, across splits, and across models. An intent the
-    model never gets right contributes a genuine 0.0 instead of vanishing.
+    Passing all 27 labels from artifacts/labels.json is what keeps the
+    number comparable across runs, splits, and models. An intent the model
+    never gets right then contributes a genuine 0.0 instead of dropping
+    out of the average.
 
     Returns accuracy, macro-F1, weighted-F1, and a per-class breakdown.
 
-    Why both macro and weighted: macro treats every intent equally and is the
-    decisive metric (a small intent the model always misses drags it down);
-    weighted scales each intent by how many rows it has. The GAP between them
-    is the size of the imbalance problem, so reporting one without the other
-    throws away information. The raw dataset is near-balanced, but the clean
-    training set is not - the family collapse left a 4.06:1 ratio - so the two
-    numbers diverge at the intent level here, not only at the category level.
+    Both macro and weighted are reported because macro treats every intent
+    equally and is the decisive metric (a small intent the model always
+    misses drags it down), while weighted scales each intent by its row
+    count. The gap between them measures the size of the imbalance
+    problem, so reporting one without the other discards information. The
+    raw dataset is near-balanced, but the clean training set is not - the
+    family collapse leaves a 4.06:1 ratio - so the two numbers diverge at
+    the intent level here, not only at the category level.
     """
     labels = list(labels)
     if len(labels) != len(set(labels)):
@@ -113,13 +117,12 @@ def evaluate_predictions(y_true, y_pred, labels: list[str]) -> dict:
 
 
 def per_class_frame(metrics: dict) -> pd.DataFrame:
-    """The per-class block of evaluate_predictions() as a table, worst first.
+    """Reformats the per-class block of evaluate_predictions() as a table, worst first.
 
-    This is the table that answers "which intents are actually hard", which is
-    a different and more useful question than "what is the average". Sorted
-    ascending by F1 so the problems are at the top, and written to CSV so
-    tomorrow's model can be compared to it intent by intent rather than on one
-    aggregate number.
+    This table answers "which intents are actually hard", a more useful
+    question than "what is the average". Sorted ascending by F1 so the
+    weakest intents appear first, and written to CSV so later models can be
+    compared to it intent by intent rather than on one aggregate number.
     """
     return (pd.DataFrame(metrics["per_class"]).T
             .reset_index()
@@ -134,21 +137,21 @@ def per_class_frame(metrics: dict) -> pd.DataFrame:
 # =========================================================================
 
 def top_confusions(y_true, y_pred, k: int = 10, labels: list[str] | None = None) -> pd.DataFrame:
-    """The k largest off-diagonal cells: which pairs the model actually mixes up.
+    """Returns the k largest off-diagonal cells: which pairs the model actually mixes up.
 
-    The diagonal is the correct answers, so everything interesting is off it.
-    This is the table that confronts the prediction pre-registered in
-    01_data.ipynb before anything was trained - get_invoice vs check_invoice,
-    the three refund intents, and so on.
+    The diagonal holds the correct answers, so everything interesting is
+    off it. This table is what confirms or refutes the confusions
+    predicted in notebooks/01_data.ipynb before any training - get_invoice
+    vs check_invoice, the three refund intents, and similar.
 
-    Why this matters more than it looks: if a model with no language
-    understanding at all confuses exactly the pairs that were predicted from
-    reading the label scheme, the confusion is a property of the TAXONOMY, not
-    of the model. That is a much stronger claim than "the model got confused",
-    and it survives the fine-tuned model getting a better score.
+    This comparison matters because if a model with no language
+    understanding at all confuses exactly the pairs predicted from reading
+    the label scheme, the confusion is a property of the taxonomy rather
+    than of the model - a stronger claim than "the model got confused",
+    and one that survives the fine-tuned model achieving a better score.
 
-    `share_of_true` is included because a raw count favours large classes: 40
-    errors out of 500 rows is a different phenomenon from 40 out of 60.
+    `share_of_true` is included because a raw count favours large classes:
+    40 errors out of 500 rows is a different phenomenon from 40 out of 60.
     """
     if labels is None:
         labels = sorted(set(map(str, y_true)) | set(map(str, y_pred)))
@@ -176,12 +179,12 @@ def top_confusions(y_true, y_pred, k: int = 10, labels: list[str] | None = None)
 
 def check_predicted_pairs(confusions: pd.DataFrame,
                           predicted_pairs: list[tuple[str, str]]) -> pd.DataFrame:
-    """Score the day-1 pre-registration against what actually happened.
+    """Scores a pre-registered confusion prediction against what actually happened.
 
-    A prediction written down before seeing any result is the most convincing
-    paragraph available in the analysis chapter, and one that is refuted is
-    more interesting still - but only if it is checked mechanically rather than
-    by eye afterwards, which is how a prediction quietly becomes a description.
+    A prediction written down before seeing any result carries more weight
+    than one asserted after the fact, and a refuted one is informative too
+    - but only if it is checked mechanically rather than by eye afterwards,
+    which is how a prediction quietly becomes a description.
 
     Direction-insensitive: predicting that A and B get confused is a claim
     about the pair, not about which way round the error falls.
@@ -205,19 +208,20 @@ def check_predicted_pairs(confusions: pd.DataFrame,
 
 def error_frame(eval_df: pd.DataFrame, y_pred, confidence=None,
                 label_column: str = "intent") -> pd.DataFrame:
-    """Every misclassified row, with enough context to read it by hand.
+    """Returns every misclassified row, with enough context to inspect by hand.
 
-    Twenty actual sentences the model got wrong tell you more about what to fix
-    than any aggregate score does, and they cost nothing at prediction time -
-    but only if they are captured DURING the run. Reconstructing them later
-    means re-running the model, which for tomorrow's GPU runs means paying for
-    the same compute twice.
+    Individual misclassified sentences reveal more about what to fix than
+    any aggregate score, and cost nothing to capture at prediction time -
+    but only if captured during the run. Reconstructing them later would
+    mean re-running the model, which for a GPU run means paying for the
+    same compute twice.
 
-    `confidence` is optional because not every baseline has one (majority class
-    has no meaningful notion of it). When present, sorting by it separates two
-    very different failures: confident-and-wrong is a systematic problem with
-    the label scheme or the features, while unconfident-and-wrong is the model
-    correctly reporting that the sentence is ambiguous.
+    `confidence` is optional, since not every baseline produces one
+    (majority class has no meaningful notion of it). When present, sorting
+    by it separates two distinct failure modes: confident-and-wrong points
+    to a systematic problem with the label scheme or features, while
+    unconfident-and-wrong reflects the model correctly signalling that the
+    sentence is ambiguous.
     """
     out = eval_df.copy().reset_index(drop=True)
     out["predicted"] = list(y_pred)
@@ -237,20 +241,22 @@ def error_frame(eval_df: pd.DataFrame, y_pred, confidence=None,
 
 def flag_slices(eval_df: pd.DataFrame, y_pred, label_column: str = "intent",
                 min_rows: int = 30) -> pd.DataFrame:
-    """Accuracy per linguistic-phenomenon flag. Where does the model actually break?
+    """Reports accuracy per linguistic-phenomenon flag.
 
-    The dataset tags every row with letters describing how the sentence was
-    generated: Z for typos, K for keyword-only phrasing, P for politeness, and
-    so on. Slicing accuracy by letter turns "93% overall" into a robustness
-    claim - or reveals that the average is carried by the clean, well-formed
-    rows while the noisy ones fail.
+    The dataset tags every row with letters describing how the sentence
+    was generated: Z for typos, K for keyword-only phrasing, P for
+    politeness, and similar. Slicing accuracy by letter turns "93%
+    overall" into a robustness claim, or reveals that the average is
+    carried by clean, well-formed rows while noisy ones fail.
 
-    The letters are read from the data rather than hardcoded from the dataset
-    card. The published documentation lists twelve; this file contains
-    fourteen. A hardcoded list would silently skip the two undocumented ones.
+    The letters are read from the data rather than hardcoded from the
+    dataset card, since the published documentation lists twelve while
+    this file contains fourteen; a hardcoded list would silently skip the
+    two undocumented ones.
 
-    `min_rows` suppresses slices too small to interpret - accuracy over eight
-    rows moves by 12.5 points per row and reads as a finding when it is noise.
+    `min_rows` suppresses slices too small to interpret - accuracy over
+    eight rows moves by 12.5 points per row and would otherwise read as a
+    finding when it is noise.
     """
     out = eval_df.copy().reset_index(drop=True)
     out["predicted"] = list(y_pred)
@@ -283,7 +289,7 @@ def flag_slices(eval_df: pd.DataFrame, y_pred, label_column: str = "intent",
 # =========================================================================
 
 def library_versions() -> dict:
-    """Which versions produced this number. Cheap now, unreconstructable later."""
+    """Records the library versions that produced a run, for reproducibility."""
     import sklearn
     return {
         "python": platform.python_version(),
@@ -296,19 +302,19 @@ def library_versions() -> dict:
 
 def run_record(name: str, config: dict, metrics: dict,
                runtime_seconds: float, notes: str = "") -> dict:
-    """One run, one dictionary, one JSON file. Always the same shape.
+    """Assembles one run into a single dictionary of fixed shape.
 
-    After a dozen runs it is impossible to remember which number came from
-    which configuration, and a dictionary assembled by hand in a notebook cell
-    omits a different field every time - so the summary table quietly compares
-    runs that were not configured the same way.
+    Across many runs it becomes difficult to track which number came from
+    which configuration, and a dictionary assembled by hand in a notebook
+    cell tends to omit a different field each time, letting the summary
+    table silently compare runs that were not configured the same way.
 
     On seeds: `config` is expected to name them separately - split_seed,
-    subsample_seed, train_seed - and never to contain one key called "seed".
-    Three different things called "seed" is how variance that is really
-    different DATA gets reported as training noise. For these baselines
-    train_seed is None, because lbfgs is deterministic; the only stochastic
-    element is which rows the subsample drew.
+    subsample_seed, train_seed - and never to contain a single key called
+    "seed". Conflating three distinct seeds under one name is how variance
+    that is really different data gets reported as training noise. For
+    these baselines train_seed is None, since lbfgs is deterministic; the
+    only stochastic element is which rows the subsample drew.
     """
     for forbidden in ("seed",):
         if forbidden in config:
@@ -329,11 +335,12 @@ def run_record(name: str, config: dict, metrics: dict,
 
 
 def summarise_runs(records: list[dict]) -> pd.DataFrame:
-    """All run records as one table - the thing that gets pasted into the report.
+    """Combines all run records into one comparison table.
 
-    Deliberately drops the per-class block: this is the comparison view, and
-    27 columns per run would make it unreadable. The per-class detail stays in
-    the individual JSON files and in per_class_frame().
+    Deliberately drops the per-class block: this is the comparison view,
+    and 27 columns per run would make it unreadable. The per-class detail
+    remains available in the individual JSON files and via
+    per_class_frame().
     """
     rows = []
     for record in records:

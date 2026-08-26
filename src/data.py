@@ -1,48 +1,51 @@
 """
-Data preparation. Runs once at the start, on CPU. After that we barely touch it.
+Data preparation. Runs once, on CPU, ahead of any model work.
 
-What goes in here:
-- Download the Bitext dataset (or read it from disk if it is already there).
-- Light text cleaning: collapse double spaces, drop empty rows. Nothing more.
-- Find rows that are almost the same sentence. The dataset was generated
-  automatically, so many rows are variations of one template. Rows like that
-  must end up in the same split, otherwise the model is tested on sentences
-  it has already seen.
-- Split the data into three parts: train (learn from it), val (check while
-  tuning), test (check only at the very end).
-- Save a fingerprint of the split: the seed used, how many rows in each part.
-  This is what lets the lecturer run the code and get exactly the same split,
-  and therefore exactly the same numbers as the report.
-- Keep a registry of EVERY raw row (full_corpus.csv): its template family, the
-  split side that family landed on, and whether it is the row that represents
-  the family in the classification files. The training files keep one row per
-  family, which drops 42% of the corpus; this registry is what makes that a
-  collapse rather than a deletion, and it is what the uncollapsed-alternative
-  ablation is built from.
+Scope of this module:
+- Download the Bitext dataset, or read it from disk if already present.
+- Light text cleaning: collapse repeated whitespace, drop empty rows.
+  Nothing more.
+- Identify near-duplicate sentences. The dataset was generated
+  automatically, so many rows are variations of one template. Sibling rows
+  must land on the same side of the split, otherwise the model is
+  evaluated on sentences it has effectively already seen.
+- Split the data into three parts: train, val (used while tuning), and
+  test (opened only at the end).
+- Save a fingerprint of the split - the seed used and the row count of
+  each part - so the split can be reproduced exactly, and the same numbers
+  reported.
+- Maintain a registry of every raw row (full_corpus.csv): its template
+  family, the split side that family was assigned to, and whether it is
+  the row chosen to represent the family in the classification files. The
+  training files keep one row per family, which drops 42% of the corpus;
+  this registry is what turns that into a documented collapse rather than
+  a silent deletion, and it is the source for the uncollapsed-alternative
+  ablation.
 
-Note: no print statements and no plots in this file. Only functions that take
-a table and return a table. notebooks/01_data.ipynb is what runs them and
-shows the results.
+This file contains no print statements and no plots. Only functions that
+take a table and return a table. notebooks/01_data.ipynb runs them and
+reports the results.
 
 --------------------------------------------------------------------------
-READING ORDER (the file is written to be read top to bottom)
+READING ORDER (the file is organised to be read top to bottom)
   1. Constants          - every number that must never drift lives here.
-  2. Loading            - get the raw CSV, verify it is the file we expect,
-                          and read back the frozen split files.
+  2. Loading            - fetch the raw CSV, verify its shape, and read
+                          back the frozen split files.
   3. Cleaning           - whitespace, empty rows, exact duplicates.
-  4. Near-duplicates    - the interesting part: group sibling sentences.
-  5. Splitting          - stratified 70/15/15, twice (clean and naive).
-  6. Leakage measurement- how close is a test row to its nearest train row.
-  7. Artifacts          - labels / intent->category, the contract.
+  4. Near-duplicates    - grouping sibling sentences into families.
+  5. Splitting          - stratified 70/15/15, for both clean and naive.
+  6. Leakage measurement- how close a test row sits to its nearest train row.
+  7. Artifacts          - labels / intent->category, the output contract.
   8. Manifest           - the identity card of the split.
   9. Token lengths      - instruction lengths in real model tokens.
   10. Taxonomy diagnostic - how much each intent label bundles distinct goals.
-  11. Canonical space   - the ONE corpus every similarity number is defined
-                          against, so two notebooks cannot drift apart.
-  12. Residual leakage  - the same measurement in two independent feature
-                          spaces, because one of them cannot fail.
-  13. Ambiguity ceiling - near-identical sentences under different labels.
-  14. Cleaning audit    - what each cleaning step actually buys, in rows.
+  11. Canonical space   - the one corpus every similarity number is defined
+                          against, so notebooks cannot drift apart.
+  12. Residual leakage  - the same measurement repeated in an independent
+                          feature space, since one of the two cannot fail
+                          by construction.
+  13. Ambiguity ceiling - near-identical sentences carrying different labels.
+  14. Cleaning audit    - what each cleaning step measurably removes.
   15. Uncollapsed set   - the training set the family collapse gives up.
 --------------------------------------------------------------------------
 """
@@ -64,73 +67,76 @@ from sklearn.model_selection import train_test_split
 # =========================================================================
 # 1. CONSTANTS
 # =========================================================================
-# Everything that could silently change a result is a named constant here,
-# and nowhere else. The reason is not tidiness: if the near-duplicate
-# threshold lives inside a notebook cell, someone nudges it from 0.90 to
-# 0.88 "just to look", the split changes, and two training runs are no
-# longer comparable - with no error message anywhere.
+# Anything that could silently change a result is a named constant here,
+# and nowhere else. This is not a matter of tidiness: if the near-duplicate
+# threshold lived inside a notebook cell, an incidental edit from 0.90 to
+# 0.88 would change the split, and two training runs would no longer be
+# comparable, with no error raised anywhere.
 
 HF_REPO = "bitext/Bitext-customer-support-llm-chatbot-training-dataset"
 RAW_FILENAME = "Bitext_Sample_Customer_Support_Training_Dataset_27K_responses-v11.csv"
 DEFAULT_RAW_DIR = Path("data/raw")
 DEFAULT_PROCESSED_DIR = Path("data/processed")
 
-# The two split families and the three parts each of them has. Named here so
-# that load_split() can reject a typo instead of raising FileNotFoundError from
-# somewhere deep in pandas - "naive" vs "clean" is a two-word difference that
-# produces a completely believable wrong number.
+# The two split families and the three parts each has. Named here so that
+# load_split() can reject a typo instead of raising FileNotFoundError from
+# somewhere inside pandas - "naive" vs "clean" is a two-character difference
+# that produces a plausible but wrong number.
 SPLIT_NAMES = ("clean", "naive")
 SPLIT_PARTS = ("train", "val", "test")
 
-# The three numbers the guide says to verify by hand before doing anything
-# else. If the file upstream is updated these stop matching, and every number
-# in the report would silently be about a different dataset.
+# The three numbers to verify before anything else runs. If the upstream
+# file changes, these stop matching, and every figure in the report would
+# otherwise silently describe a different dataset.
 EXPECTED_N_ROWS = 26_872
 EXPECTED_N_INTENTS = 27
 EXPECTED_N_CATEGORIES = 11
 
-# The split seed. This one is frozen forever (decision C2).
-# It is NOT the training seed - that one is a different constant, in a
-# different file, and it is the one that varies across the three noise-floor
-# runs. Two seeds with the same name is a classic way to report "training
-# variance" that is really "different data".
+# The split seed, frozen for the life of the project.
+# This is NOT the training seed - that is a separate constant, in a
+# different file, and is the one that varies across the noise-floor runs.
+# Two seeds sharing a name is a common way to mistake "different data" for
+# "training variance".
 SPLIT_SEED = 42
 
-# The subsample seed - a THIRD thing called "seed" in this project, and named
-# apart from the other two for the same reason they are named apart from each
-# other. It decides which 9,893 of naive/train's 17,187 rows form the size
-# control. Day 2 used this value; changing it silently would produce a frame
-# with the right row count, the right class balance and the wrong rows.
+# The subsample seed - a third, distinct "seed" in this project, named
+# apart from the other two for the same reason they are named apart from
+# each other. It determines which 9,893 of naive/train's 17,187 rows form
+# the size control. Changing it silently would produce a frame with the
+# right row count and class balance but the wrong rows.
 SUBSAMPLE_SEED = 42
 
-# The size control's own directory. It is not a split - it is a subset of one -
-# so it lives beside clean/ and naive/ with its own manifest rather than being
-# written into split_manifest.json, whose hashes five other asserts depend on.
+# The size control's own directory. It is not a split but a subset of one,
+# so it lives beside clean/ and naive/ with its own manifest rather than
+# being folded into split_manifest.json, whose hashes several other checks
+# depend on.
 NAIVE_SUB_DIR = "naive_sub"
 
-# 70 / 15 / 15. train_test_split cannot do three-way, so we split twice:
-# first 70/30, then cut the 30 in half.
+# 70 / 15 / 15. train_test_split does not support a three-way split
+# directly, so the split is performed twice: first 70/30, then the
+# remaining 30 is halved.
 HOLDOUT_FRACTION = 0.30
 VAL_SHARE_OF_HOLDOUT = 0.50
 
-# Cosine-similarity threshold above which two sentences are called siblings
-# of the same template. This value is not typed in here by preference: it is
-# what the selection rule in notebooks/01_data.ipynb (section 1.3) returns.
-# The rule is fixed before any candidate is measured - take the LOOSEST
-# threshold, i.e. the one that keeps the most training data, at which the
-# resulting split is still clean - and the notebook applies it to a scan over
-# {0.80, 0.85, 0.90, 0.91, 0.92, 0.95} and asserts that it lands on this
-# constant. Change the rule or the scan and the assert is what complains.
+# Cosine-similarity threshold above which two sentences are treated as
+# siblings of the same template. This value is derived rather than typed
+# in by preference: it is the output of the selection rule in
+# notebooks/01_data.ipynb (section 1.3). The rule is fixed before any
+# candidate is measured - take the loosest threshold, i.e. the one that
+# retains the most training data, at which the resulting split is still
+# clean - applied to a scan over {0.80, 0.85, 0.90, 0.91, 0.92, 0.95}, and
+# the notebook asserts that it lands on this constant. Changing the rule or
+# the scan is what would need to update this value.
 NEAR_DUP_THRESHOLD = 0.90
 
-# One vector space, defined once, used for three different jobs:
-# clustering near-duplicates, measuring leakage in the naive split, and
-# verifying the clean split. If clustering used one vectorizer and the
-# leakage measurement used another, "cleaned at 0.90" and "0.9 similar"
-# would be numbers in two different units and the claim would not be
-# checkable. char_wb (character n-grams inside word boundaries) rather than
-# words, because the dataset deliberately contains typos: "delivery" vs
-# "deliverly" share almost every 3-gram but zero words.
+# One vector space, defined once, used for three purposes: clustering
+# near-duplicates, measuring leakage in the naive split, and verifying the
+# clean split. Using one vectorizer for clustering and a different one for
+# measurement would leave "cleaned at 0.90" and "0.9 similar" as numbers in
+# different units, and the claim would not be checkable. char_wb (character
+# n-grams inside word boundaries) is used rather than word n-grams because
+# the corpus deliberately contains typos: "delivery" and "deliverly" share
+# almost every 3-gram but zero words.
 TFIDF_PARAMS = dict(
     analyzer="char_wb",
     ngram_range=(3, 5),
@@ -138,33 +144,32 @@ TFIDF_PARAMS = dict(
     sublinear_tf=True,  # 1+log(tf): a word repeated 5x is not 5x more important
 )
 
-# How many tokens the model is given per ticket. MEASURED, not guessed:
-# token_lengths() over the whole corpus with the real Qwen3 tokenizer gave
-# p99 = 19 and max = 24, so 32 truncates exactly zero rows with room to spare
-# (printed in section 1.7 of notebooks/01_data.ipynb).
-# It lives here rather than in the training file because it is a property of
-# THIS DATASET, and because the alternative is retyping it from a notebook
-# output tomorrow. Attention cost grows with the square of the sequence length:
-# the naive default of 512 would be ~250x the cost for identical predictions,
-# and even a slip to 64 is 4x slower with no error and no warning.
+# Number of tokens the model is given per ticket. Measured, not guessed:
+# token_lengths() over the whole corpus with the real Qwen3 tokenizer gives
+# p99 = 19 and max = 24, so 32 truncates zero rows with room to spare (see
+# section 1.7 of notebooks/01_data.ipynb).
+# Defined here rather than in the training module because it is a property
+# of this dataset. Attention cost grows quadratically with sequence
+# length: the naive default of 512 would cost roughly 250x for identical
+# predictions, and even a slip to 64 is 4x slower with no error raised.
 MAX_LENGTH = 32
 
-# The columns that get written to the split CSVs.
-# `response` is deliberately NOT here. It is the templated answer, and if it
-# ever reaches the feature side the model reads the answer off the input and
-# scores ~0.999. Leaving it out of the file makes that mistake impossible
-# rather than merely discouraged.
-# `flags` and `category` DO stay: they are never features either, but they are
-# needed for error slicing and for category-level metrics.
+# Columns written to the split CSVs.
+# `response` is deliberately excluded. It is the templated answer, and if
+# it reaches the feature side the model reads the answer off its own input
+# and scores ~0.999. Omitting it from the file makes that mistake
+# impossible rather than merely discouraged.
+# `flags` and `category` remain: neither is a feature either, but both are
+# needed for error slicing and category-level metrics.
 SPLIT_COLUMNS = ["row_id", "instruction", "intent", "category", "flags", "dup_group"]
 
-# The columns of data/processed/full_corpus.csv - the registry of EVERY raw row
-# (decision C6). Not a training file: nothing trains on it. It exists so that no
-# row is silently discarded by the one-representative-per-family collapse, and
-# so that the ~2.3k exact-duplicate rows keep a split assignment instead of
+# Columns of data/processed/full_corpus.csv - the registry of every raw
+# row. Not a training file: nothing trains on it. It exists so that no row
+# is silently discarded by the one-representative-per-family collapse, and
+# so the ~2.3k exact-duplicate rows retain a split assignment rather than
 # falling outside the guarantee. train_side_rows() reads it to build the
-# uncollapsed alternative the family-collapse ablation is measured against.
-# `response` is deliberately absent here too, for the same reason as above:
+# uncollapsed alternative that the family-collapse ablation is measured
+# against. `response` is absent here too, for the same reason as above:
 # nothing under data/processed/ ever contains the answer text.
 FULL_CORPUS_COLUMNS = ["row_id", "instruction", "intent", "category", "flags",
                        "dup_group", "split", "is_representative", "is_exact_duplicate"]
@@ -175,12 +180,13 @@ FULL_CORPUS_COLUMNS = ["row_id", "instruction", "intent", "category", "flags",
 # =========================================================================
 
 def load_raw(raw_dir: Path | str = DEFAULT_RAW_DIR, download_if_missing: bool = True) -> pd.DataFrame:
-    """Return the raw Bitext table, downloading it once if it is not on disk.
+    """Returns the raw Bitext table, downloading it once if not already on disk.
 
-    Why a local copy at all: Colab wipes the machine when the session dies.
-    Re-downloading 19 MB every session is slow, and - worse - it silently
-    picks up any upstream change. A local file plus the hash in the manifest
-    turns "the dataset changed" from an invisible event into a failed assert.
+    A local copy matters because Colab wipes the machine when the session
+    ends. Re-downloading 19 MB every session is slow and, more importantly,
+    would silently pick up any upstream change. A local file plus the hash
+    recorded in the manifest turns "the dataset changed" from an invisible
+    event into a failed assertion.
     """
     raw_dir = Path(raw_dir)
     local_path = raw_dir / RAW_FILENAME
@@ -195,18 +201,18 @@ def load_raw(raw_dir: Path | str = DEFAULT_RAW_DIR, download_if_missing: bool = 
 
         raw_dir.mkdir(parents=True, exist_ok=True)
         cached = hf_hub_download(HF_REPO, RAW_FILENAME, repo_type="dataset")
-        # copy rather than symlink: Windows/OneDrive does not do symlinks well
+        # copy rather than symlink: Windows/OneDrive does not handle symlinks well
         local_path.write_bytes(Path(cached).read_bytes())
 
     return pd.read_csv(local_path, encoding="utf-8")
 
 
 def verify_raw(df: pd.DataFrame) -> dict:
-    """Check the three headline numbers, and raise if any of them moved.
+    """Checks the three headline shape numbers and raises if any moved.
 
-    This is the "stop and report" check from the guide. It is deliberately an
-    exception and not a warning: a warning scrolls past in a notebook, and
-    then every figure in the report describes a dataset nobody looked at.
+    This is deliberately an exception rather than a warning: a warning
+    scrolls past in a notebook, after which every figure in the report
+    would describe a dataset nobody actually inspected.
     """
     found = {
         "n_rows": len(df),
@@ -229,7 +235,7 @@ def verify_raw(df: pd.DataFrame) -> dict:
 
 
 def sha256_of_file(path: Path | str) -> str:
-    """Hash of the raw CSV as it sits on disk. Goes into the manifest."""
+    """Hash of the raw CSV as it sits on disk. Recorded in the manifest."""
     h = hashlib.sha256()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(1 << 20), b""):
@@ -239,22 +245,22 @@ def sha256_of_file(path: Path | str) -> str:
 
 def load_split(split_name: str, part: str,
                processed_dir: Path | str = DEFAULT_PROCESSED_DIR) -> pd.DataFrame:
-    """Read one frozen split file, e.g. load_split("clean", "train").
+    """Reads one frozen split file, e.g. load_split("clean", "train").
 
-    This exists so that no notebook cell ever writes a path by hand. The two
-    split families differ by one word in the middle of the path, and getting it
-    wrong does not crash: training on `naive/train` while scoring `clean/val`
-    runs perfectly and answers a question nobody asked. Validating the two
-    arguments against a fixed list turns that into a ValueError naming the
-    typo.
+    Centralising this avoids notebook cells writing a path by hand. The two
+    split families differ by one word in the middle of the path, and
+    getting it wrong does not crash: training on `naive/train` while
+    scoring `clean/val` runs without error and answers a question nobody
+    asked. Validating both arguments against a fixed list turns that into a
+    ValueError naming the typo.
 
-    The `response` guard enforces the README rule that no file under
+    The `response` guard enforces the rule that no file under
     data/processed/ carries the `response` column. `response` is the
-    templated ANSWER; if it ever reaches the feature side the model reads
-    the answer off its own input and scores ~0.999, which looks like success.
-    SPLIT_COLUMNS already excludes it, so this can only fire if someone
-    regenerates the CSVs with a different column list - which is exactly the
-    moment you want to be told.
+    templated answer; if it reaches the feature side the model reads the
+    answer off its own input and scores ~0.999, which looks like success.
+    SPLIT_COLUMNS already excludes it, so this can only fire if the CSVs
+    are regenerated with a different column list - exactly the situation
+    this check is meant to catch.
     """
     if split_name not in SPLIT_NAMES:
         raise ValueError(f"split_name must be one of {SPLIT_NAMES}, got {split_name!r}")
@@ -280,19 +286,18 @@ def load_split(split_name: str, part: str,
 
 def load_all_splits(processed_dir: Path | str = DEFAULT_PROCESSED_DIR,
                     ) -> dict[str, dict[str, pd.DataFrame]]:
-    """All six CSVs, in the nested shape verify_against_manifest() expects.
+    """Loads all six CSVs, in the nested shape verify_against_manifest() expects.
 
     {"clean": {"train": df, "val": df, "test": df}, "naive": {...}}
 
-    Returning exactly that shape is the point: the manifest check is then two
-    lines at the top of a notebook instead of a dict assembled by hand, and a
-    hand-assembled dict that omits one part verifies five files while reporting
-    success.
+    Returning exactly this shape means the manifest check is two lines at
+    the top of a notebook rather than a dict assembled by hand, where an
+    omitted part would verify five files while reporting success.
 
-    Note that this loads `test` as well. Loading it is not the same as looking
-    at it - the manifest check has to hash all six files or it is not checking
-    the split. Decision E2 governs SCORING on test, and that stays sealed until
-    the final run.
+    Note that `test` is loaded as well. Loading it is not the same as
+    inspecting it - the manifest check must hash all six files to actually
+    verify the split. Scoring on test is a separate, deliberate step that
+    stays gated until the final run.
     """
     return {
         name: {part: load_split(name, part, processed_dir) for part in SPLIT_PARTS}
@@ -303,28 +308,28 @@ def load_all_splits(processed_dir: Path | str = DEFAULT_PROCESSED_DIR,
 # -------------------------------------------------------------------------
 # 2b. THE SIZE CONTROL
 # -------------------------------------------------------------------------
-# naive/train has 17,187 rows and clean/train has 9,893, so every comparison
-# between the two protocols can be answered with "you simply had less data".
-# naive_sub is naive/train cut down to clean/train's row count, which removes
-# that explanation and leaves one variable: whether the training set contains
-# siblings of the evaluation sentences.
+# naive/train has 17,187 rows and clean/train has 9,893, so any score
+# difference between the two protocols could otherwise be attributed to
+# training-set size alone. naive_sub is naive/train cut down to
+# clean/train's row count, which removes that explanation and leaves one
+# variable: whether the training set contains siblings of the evaluation
+# sentences.
 #
-# Day 2 drew it inside 02_baselines.ipynb and never wrote it anywhere. That was
-# survivable while it fed a two-second TF-IDF fit. It stops being survivable
-# the moment a MODEL trains on it and other numbers are compared against that
-# model: a frame redrawn next week has the right row count, the right class
-# balance and the wrong rows, and it produces a believable score that cannot be
-# compared to day 2's. So it becomes a file, with a hash.
+# This subsample is written to disk with its own manifest rather than
+# redrawn inline, because a frame redrawn independently would have the
+# right row count and class balance but not necessarily the same rows,
+# producing a plausible score that is not actually comparable to earlier
+# runs against it.
 
 def build_naive_sub(naive_train: pd.DataFrame, clean_train: pd.DataFrame,
                     seed: int = SUBSAMPLE_SEED) -> pd.DataFrame:
-    """Draw the size control: naive/train, cut to clean/train's row count.
+    """Draws the size control: naive/train, cut to clean/train's row count.
 
-    The target size is read from clean/train rather than written as 9893, so
-    the two frames cannot drift apart without this raising. The draw itself is
-    baselines.subsample_stratified - the same function day 2 called, not a
-    reimplementation of it, because a second implementation of "draw n rows
-    keeping the class proportions" is a second set of rows.
+    The target size is read from clean/train rather than hardcoded as
+    9893, so the two frames cannot drift apart without this raising. The
+    draw itself calls baselines.subsample_stratified rather than
+    reimplementing it, since a second implementation of "draw n rows
+    keeping class proportions" would be a second source of truth.
     """
     from .baselines import subsample_stratified
     return subsample_stratified(naive_train, n_rows=len(clean_train), seed=seed)
@@ -333,12 +338,12 @@ def build_naive_sub(naive_train: pd.DataFrame, clean_train: pd.DataFrame,
 def write_naive_sub(frame: pd.DataFrame, manifest: dict,
                     processed_dir: Path | str = DEFAULT_PROCESSED_DIR,
                     seed: int = SUBSAMPLE_SEED) -> dict:
-    """Write naive_sub/train.csv and its own small manifest. Returns the manifest.
+    """Writes naive_sub/train.csv and its own small manifest. Returns the manifest.
 
-    `drawn_from_sha256` is the fingerprint of the frame it was drawn from, so
-    the control cannot outlive the split it controls for: if naive/train is
+    `drawn_from_sha256` fingerprints the frame it was drawn from, so the
+    control cannot outlive the split it controls for: if naive/train is
     ever rebuilt differently, this file's provenance stops matching and
-    load_naive_sub() says so.
+    load_naive_sub() reports it.
     """
     directory = Path(processed_dir) / NAIVE_SUB_DIR
     directory.mkdir(parents=True, exist_ok=True)
@@ -353,23 +358,23 @@ def write_naive_sub(frame: pd.DataFrame, manifest: dict,
         "stratified_on": "intent",
         "n_rows": len(frame),
         "sha256": sha256_of_split(frame),
-        "drawn_by": "src.baselines.subsample_stratified, the day 2 call",
+        "drawn_by": "src.baselines.subsample_stratified",
         "not_in_split_manifest": (
-            "this is a subset of a split rather than a split, and day 1's "
-            "manifest is settled - rewriting it would move hashes that the "
-            "assert at the top of every notebook depends on"),
+            "this is a subset of a split rather than a split, and split_manifest.json "
+            "is settled - rewriting it would move hashes that the assert at the top "
+            "of every notebook depends on"),
     }
     write_json(sub_manifest, directory / "subsample_manifest.json")
     return sub_manifest
 
 
 def load_naive_sub(processed_dir: Path | str = DEFAULT_PROCESSED_DIR) -> pd.DataFrame:
-    """Read the size control, verifying its sha256 on the way in.
+    """Reads the size control, verifying its sha256 on the way in.
 
-    Verified here rather than in a notebook cell because the failure being
-    guarded against is silent. A naive_sub with the wrong rows trains fine,
-    scores plausibly, and produces a size control that controls for nothing -
-    there is no exception anywhere to notice.
+    Verified here rather than left to a notebook cell because the failure
+    being guarded against is silent. A naive_sub with the wrong rows trains
+    fine, scores plausibly, and controls for nothing - there is no
+    exception anywhere to surface that.
     """
     directory = Path(processed_dir) / NAIVE_SUB_DIR
     path, manifest_path = directory / "train.csv", directory / "subsample_manifest.json"
@@ -377,7 +382,7 @@ def load_naive_sub(processed_dir: Path | str = DEFAULT_PROCESSED_DIR) -> pd.Data
         raise FileNotFoundError(
             f"{path} or its manifest is missing. Build it with "
             "`python tools/build_naive_sub.py`, which verifies the draw against "
-            "day 2's committed scores before writing.")
+            "the committed baseline scores before writing.")
 
     frame = pd.read_csv(path, encoding="utf-8")
     sub_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -387,8 +392,8 @@ def load_naive_sub(processed_dir: Path | str = DEFAULT_PROCESSED_DIR) -> pd.Data
             f"{path} does not match its manifest.\n"
             f"  on disk   {actual}\n"
             f"  manifest  {sub_manifest['sha256']}\n"
-            "These are not the rows day 2 measured, so nothing scored against "
-            "them is comparable to day 2's numbers. Rebuild with "
+            "These are not the rows the committed baselines were measured on, so "
+            "nothing scored against them is comparable. Rebuild with "
             "tools/build_naive_sub.py.")
     if len(frame) != sub_manifest["n_rows"]:
         raise AssertionError(
@@ -399,23 +404,23 @@ def load_naive_sub(processed_dir: Path | str = DEFAULT_PROCESSED_DIR) -> pd.Data
 # =========================================================================
 # 3. CLEANING
 # =========================================================================
-# The rule for this section: whatever we do NOT do to a live incoming ticket,
-# we must not do to the training data either. That is train/serving skew, and
-# it is why there is no lowercasing, no punctuation stripping, no stopword
-# removal and no stemming here. A question mark is a real signal for query
-# intents, and the preposition is literally the only thing separating
-# get_invoice from check_invoice.
+# The governing rule for this section: whatever is not done to a live
+# incoming ticket must not be done to the training data either. Departing
+# from that is train/serving skew, which is why there is no lowercasing, no
+# punctuation stripping, no stopword removal and no stemming here. A
+# question mark is a real signal for query intents, and a preposition is
+# literally the only thing separating get_invoice from check_invoice.
 
 _WHITESPACE = re.compile(r"\s+")
 
 
 def normalise_whitespace(df: pd.DataFrame, column: str = "instruction") -> pd.DataFrame:
-    """Collapse runs of whitespace to a single space and strip the ends.
+    """Collapses runs of whitespace to a single space and strips the ends.
 
-    This is safe under the skew rule because it is also what we would do to a
-    live ticket: a double space is a typing artefact, not a signal, and it
-    would otherwise make two identical sentences look different to the exact
-    duplicate check that runs next.
+    This is safe under the skew rule because it is also what would be done
+    to a live ticket: a double space is a typing artefact, not a signal,
+    and would otherwise make two identical sentences look different to the
+    exact-duplicate check that runs next.
     """
     out = df.copy()
     out[column] = out[column].astype(str).str.replace(_WHITESPACE, " ", regex=True).str.strip()
@@ -428,14 +433,15 @@ def drop_empty_rows(df: pd.DataFrame, column: str = "instruction") -> pd.DataFra
 
 
 def drop_exact_duplicates(df: pd.DataFrame) -> pd.DataFrame:
-    """Keep one row per (instruction, intent) pair.
+    """Keeps one row per (instruction, intent) pair.
 
-    The subset argument is the whole point. The default compares EVERY column,
-    including `flags` and `response`; two rows with identical text but a
-    different flag string both survive, and it looks like the data was cleaned
-    when nothing was removed at all. On this dataset the default removes 0 rows
-    and the correct subset removes 2,318 - the notebook prints both numbers
-    side by side, because it is the cheapest demonstration of the trap.
+    The `subset` argument is the key detail. pandas' default compares
+    every column, including `flags` and `response`; two rows with
+    identical text but a different flag string both survive, and the data
+    appears cleaned when nothing was removed. On this dataset the default
+    removes 0 rows, while the correct subset removes 2,318 - the notebook
+    reports both numbers side by side as the cheapest demonstration of the
+    trap.
     """
     return df.drop_duplicates(subset=["instruction", "intent"]).copy()
 
@@ -443,10 +449,11 @@ def drop_exact_duplicates(df: pd.DataFrame) -> pd.DataFrame:
 def find_label_conflicts(df: pd.DataFrame) -> pd.DataFrame:
     """Rows where the exact same sentence carries more than one intent.
 
-    Not a bug to patch - a ceiling to measure. If the same sentence appears
-    with two labels, no model can be right on both, so 100% is unreachable and
-    the honest headline is "93.1 against a ceiling of 98.5" rather than "93.1".
-    Returns an empty frame when there are none, which is itself a result.
+    Not a defect to patch, but a ceiling to measure: if the same sentence
+    appears with two labels, no model can be correct on both, so 100% is
+    unreachable and the honest headline is "93.1 against a ceiling of
+    98.5" rather than "93.1". Returns an empty frame when there are none,
+    which is itself a result worth stating.
     """
     per_text = df.groupby("instruction")["intent"].nunique()
     conflicted = per_text[per_text > 1].index
@@ -458,29 +465,32 @@ def find_label_conflicts(df: pd.DataFrame) -> pd.DataFrame:
 # =========================================================================
 
 def build_vector_space(texts: pd.Series | list[str]) -> tuple[TfidfVectorizer, csr_matrix]:
-    """Fit the single TF-IDF space used by every similarity computation here.
+    """Fits the single TF-IDF space used by every similarity computation here.
 
-    Fitted on ALL rows, before splitting, on purpose. This looks like it
-    violates "fit on train only", so it is worth being able to answer:
-    - "fit on train only" protects a MODEL from seeing test data. Nothing here
-      is a model; no parameter of this vectorizer ever reaches the classifier.
-    - Grouping siblings is data curation and has to happen before splitting.
-      Clustering each split separately would leave each one internally clean
-      and still leaking across the boundary.
-    - Using one space for both clustering and measuring keeps the two claims
-      in the same UNITS: "removed everything above 0.90" and "0.24% of test
-      rows are above 0.90" are then comparable statements.
+    Fitted on all rows, before splitting, deliberately. This can look like
+    a violation of "fit on train only", so it is worth stating explicitly
+    why it is not:
+    - "fit on train only" protects a model from seeing test data. Nothing
+      here is a model; no parameter of this vectorizer reaches the
+      classifier.
+    - Grouping siblings is data curation and must happen before splitting.
+      Clustering each split separately would leave each one internally
+      clean while still leaking across the boundary.
+    - Using one space for both clustering and measurement keeps the two
+      claims in the same units: "removed everything above 0.90" and
+      "0.24% of test rows are above 0.90" are then comparable statements.
 
-    That last point has a limit which was originally missed here, and it is
-    worth stating in the place the mistake was made. One space makes the two
-    numbers comparable; it does NOT make the second one evidence for the first.
-    Restricted to a single intent, the "% of test rows within 0.90 of a train
-    row" measured in THIS space is zero by construction, because that is
-    exactly the relation the families were built from. Section 12 re-measures
-    it in an independent space, which is where the checkable version lives.
+    That last point has a limit that is worth stating plainly. One space
+    makes the two numbers comparable; it does not make the second one
+    evidence for the first. Restricted to a single intent, "% of test rows
+    within 0.90 of a train row" measured in this space is zero by
+    construction, since that is exactly the relation the families were
+    built from. Section 12 re-measures it in an independent space, where
+    the checkable version of the claim lives.
 
-    TF-IDF output is L2-normalised, so X @ X.T IS cosine similarity - no
-    separate normalisation step, and no 27k x 27k dense matrix.
+    TF-IDF output is L2-normalised, so X @ X.T is cosine similarity
+    directly - no separate normalisation step, and no 27k x 27k dense
+    matrix.
     """
     vec = TfidfVectorizer(**TFIDF_PARAMS)
     X = vec.fit_transform(texts)
@@ -489,31 +499,33 @@ def build_vector_space(texts: pd.Series | list[str]) -> tuple[TfidfVectorizer, c
 
 def near_duplicate_groups(X: csr_matrix, intents: pd.Series | np.ndarray,
                           threshold: float = NEAR_DUP_THRESHOLD) -> np.ndarray:
-    """Assign every row a 'template family' id. Returns an int array, one per row.
+    """Assigns every row a template-family id. Returns an int array, one per row.
 
-    Three design points, all of which the examiner can ask about:
+    Three design points worth being able to justify:
 
-    1. Blocked by intent. All-pairs over 26,872 rows is 722M cells (~2.9 GB in
-       float32) and kills a CPU Colab. Near-duplicates are always inside one
-       intent, because they were expanded from the same template, so we do 27
-       blocks of ~900 rows instead. Seconds, not minutes.
-       (Cross-intent near-duplicates are a different phenomenon - semantic
-       conflicts - and we deliberately keep them; see the notebook.)
+    1. Blocked by intent. All-pairs over 26,872 rows is 722M cells (~2.9 GB
+       in float32), which is prohibitive on a CPU-only runtime. Near-
+       duplicates always fall inside one intent, since they were expanded
+       from the same template, so the computation runs as 27 blocks of
+       ~900 rows instead - seconds rather than minutes.
+       (Cross-intent near-duplicates are a distinct phenomenon - semantic
+       conflicts - and are deliberately kept; see the notebook.)
 
     2. Character n-grams, from the shared space above.
 
-    3. connected_components, not pairwise deletion. If A~B and B~C but A and C
-       are not similar to each other, all three still came from one template.
-       Delete in pairs and A and C survive on opposite sides of the split:
-       cleaned, and still leaking. connected_components is the transitive
-       closure of the "is similar to" relation, which is exactly the family.
+    3. `connected_components`, not pairwise deletion. If A~B and B~C but A
+       and C are not similar to each other, all three still originate from
+       one template. Deleting in pairs would leave A and C on opposite
+       sides of the split: cleaned in appearance, still leaking in effect.
+       `connected_components` computes the transitive closure of the
+       "is similar to" relation, which is exactly the family.
     """
     intents = np.asarray(intents)
     groups = np.full(X.shape[0], -1, dtype=np.int64)
     next_id = 0
 
-    # np.unique keeps the order deterministic across runs and machines, which
-    # matters because these ids end up in a committed CSV.
+    # np.unique keeps the order deterministic across runs and machines,
+    # which matters because these ids end up in a committed CSV.
     for intent in np.unique(intents):
         idx = np.flatnonzero(intents == intent)
         Xi = X[idx]
@@ -522,8 +534,8 @@ def near_duplicate_groups(X: csr_matrix, intents: pd.Series | np.ndarray,
         S = (Xi @ Xi.T).tocoo()
 
         # Keep only the edges above the threshold. Building the adjacency
-        # matrix from the surviving (row, col) pairs is cheaper and clearer
-        # than thresholding the sparse matrix in place.
+        # matrix from the surviving (row, col) pairs is cheaper and
+        # clearer than thresholding the sparse matrix in place.
         keep = S.data >= threshold
         adjacency = coo_matrix(
             (np.ones(keep.sum()), (S.row[keep], S.col[keep])),
@@ -539,18 +551,19 @@ def near_duplicate_groups(X: csr_matrix, intents: pd.Series | np.ndarray,
 
 def threshold_scan(X: csr_matrix, intents: pd.Series | np.ndarray,
                    thresholds=(0.80, 0.85, 0.90, 0.91, 0.92, 0.95)) -> pd.DataFrame:
-    """How many families survive at each candidate threshold.
+    """Reports how many families survive at each candidate threshold.
 
-    One of the two tables the selection rule in notebooks/01_data.ipynb is
-    applied to: this one prices each candidate in data kept, and the leakage
-    measurement beside it prices the same candidates in leakage left behind.
-    NEAR_DUP_THRESHOLD is whatever the rule returns from the pair.
+    One of two tables the selection rule in notebooks/01_data.ipynb is
+    applied to: this one prices each candidate in data retained, while the
+    leakage measurement beside it prices the same candidates in leakage
+    left behind. NEAR_DUP_THRESHOLD is whatever the rule returns from the
+    pair.
 
-    The candidates bracket the answer on both sides, 0.91 and 0.92 included so
-    that "why not just above it?" is answered by a measured row rather than by
-    a sentence. A flat curve would mean the choice barely matters; a steep one
-    means the threshold is a real sensitivity, which is a finding in its own
-    right and not a problem.
+    The candidates bracket the chosen threshold on both sides, with 0.91
+    and 0.92 included so that "why not just above it?" is answered by a
+    measured row rather than an assertion. A flat curve indicates the
+    choice barely matters; a steep one indicates a real sensitivity, which
+    is a finding in its own right rather than a problem.
     """
     rows = []
     n = X.shape[0]
@@ -568,14 +581,14 @@ def threshold_scan(X: csr_matrix, intents: pd.Series | np.ndarray,
 
 def pick_representatives(df: pd.DataFrame, group_column: str = "dup_group",
                          seed: int = SPLIT_SEED) -> pd.DataFrame:
-    """Keep exactly one row per family. This is what makes the clean split clean.
+    """Keeps exactly one row per family. This is what makes the clean split clean.
 
-    The representative is drawn at RANDOM, with a fixed seed.
+    The representative is drawn at random, with a fixed seed.
     """
     shuffled = df.sample(frac=1.0, random_state=seed)
     representatives = shuffled.drop_duplicates(subset=group_column)
-    # Back to the original row order so the written CSV is deterministic and
-    # readable next to the raw file.
+    # Restored to the original row order so the written CSV is
+    # deterministic and readable alongside the raw file.
     return representatives.sort_index().copy()
 
 
@@ -588,12 +601,12 @@ def split_stratified(df: pd.DataFrame, seed: int = SPLIT_SEED,
                      val_share: float = VAL_SHARE_OF_HOLDOUT,
                      stratify_column: str = "intent",
                      ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    """70 / 15 / 15, stratified on intent, in the two steps sklearn forces on us.
+    """70 / 15 / 15, stratified on intent, via the two-step split sklearn requires.
 
-    Stratified on `intent` (27) and never on `category` (11). Stratifying on
-    the 11 categories does not guarantee that all 27 intents appear in val: a
-    rare intent can end up absent, macro-F1 then averages 26 classes instead
-    of 27, and nothing complains.
+    Stratified on `intent` (27 classes), never on `category` (11). Stratifying
+    on the 11 categories would not guarantee that all 27 intents appear in
+    val: a rare intent could end up absent, macro-F1 would then average 26
+    classes instead of 27, and nothing would flag it.
     """
     train, holdout = train_test_split(
         df,
@@ -612,30 +625,30 @@ def split_stratified(df: pd.DataFrame, seed: int = SPLIT_SEED,
 
 def build_full_corpus(df_all: pd.DataFrame, df_deduped: pd.DataFrame,
                       clean_parts: dict[str, pd.DataFrame]) -> pd.DataFrame:
-    """Every raw row, stamped with its family, its split side, and its role.
+    """Every raw row, stamped with its family, split side, and role.
 
-    Why this file exists (decision C6). The clean split keeps one row per
-    family, which is right for CLASSIFICATION - train and test stay template-
-    uniform, so the score measures generalisation across templates - and wrong
-    as an archive: the other ~10k rows would simply be discarded, with no record
-    that they existed or which side of the split they belong to. This function
-    throws nothing away. Every row inherits the split side of its family's
-    representative:
+    Rationale for this file's existence: the clean split keeps one row per
+    family, which is correct for classification - train and test stay
+    template-uniform, so the score measures generalisation across
+    templates - but would otherwise act as a silent archive loss, discarding
+    the other ~10k rows with no record of their existence or split
+    assignment. This function discards nothing. Every row inherits the
+    split side of its family's representative:
 
     - one family -> one representative -> exactly one side, so the
       inheritance is well-defined;
-    - a whole family is always on ONE side, so ANY view of this file filtered
-      by `split` is leak-free by construction: it cannot contain a sibling of a
-      sentence held out on the other side. That is what makes train_side_rows()
-      a different view of the frozen split rather than a second split needing
-      its own seed and its own hash.
+    - a whole family is always on one side, so any view of this file
+      filtered by `split` is leak-free by construction: it cannot contain a
+      sibling of a sentence held out on the other side. This is what makes
+      train_side_rows() a different view of the frozen split rather than a
+      second split requiring its own seed and hash.
 
-    Exact duplicates (dropped before clustering) are re-attached through their
-    (instruction, intent) key - unambiguous because the dataset has zero exact
-    label conflicts - and marked is_exact_duplicate.
+    Exact duplicates (dropped before clustering) are re-attached through
+    their (instruction, intent) key - unambiguous, since the dataset has
+    zero exact label conflicts - and marked is_exact_duplicate.
 
-    The `split` column refers to the CLEAN split only; the naive control split
-    keeps its own six CSVs and plays no role here.
+    The `split` column refers to the clean split only; the naive control
+    split keeps its own six CSVs and plays no role here.
 
     df_all      : whitespace-normalised rows incl. exact duplicates (has row_id)
     df_deduped  : after drop_exact_duplicates, with dup_group assigned
@@ -682,12 +695,13 @@ def max_similarity_to_train(X: csr_matrix, train_index: np.ndarray, test_index: 
                             chunk_size: int = 500) -> np.ndarray:
     """For every test row: the cosine similarity to its nearest train row.
 
-    Chunked on purpose. The full product for the naive split is 3,684 x 17,187
-    which is 63M float32 = 253 MB dense; in chunks of 500 it is 34 MB at a
-    time. Same answer, no memory spike.
+    Chunked deliberately. The full product for the naive split is
+    3,684 x 17,187, which is 63M float32 = 253 MB dense; in chunks of 500 it
+    is 34 MB at a time, for the same result with no memory spike.
 
-    `train_index` / `test_index` are POSITIONS in X, so the caller must pass
-    row positions and not pandas labels - that is what `row_id` is for.
+    `train_index` / `test_index` are positions in X, so the caller must
+    pass row positions rather than pandas labels - this is what `row_id` is
+    for.
     """
     A = X[train_index]
     B = X[test_index]
@@ -699,7 +713,7 @@ def max_similarity_to_train(X: csr_matrix, train_index: np.ndarray, test_index: 
 
 
 def leakage_summary(max_sim: np.ndarray, exact_overlap_fraction: float) -> dict:
-    """The three numbers the guide asks for, plus the median for context."""
+    """The three headline leakage figures, plus the median for context."""
     return {
         "exact_pct": round(100 * float(exact_overlap_fraction), 2),
         "ge_0.95_pct": round(100 * float((max_sim >= 0.95).mean()), 2),
@@ -715,36 +729,37 @@ def exact_overlap(train: pd.DataFrame, test: pd.DataFrame, column: str = "instru
 
 
 # =========================================================================
-# 7. ARTIFACTS  (the contract: two small JSON files, committed on purpose)
+# 7. ARTIFACTS  (the output contract: two small JSON files, committed)
 # =========================================================================
 
 def build_labels(df: pd.DataFrame) -> list[str]:
-    """The 27 intents, sorted. The one thing deliberately built from ALL rows.
+    """The 27 intents, sorted - the one artifact deliberately built from all rows.
 
-    The model knows integers 0..26, not names; this list is the translation.
-    It is a contract, not a learned parameter, so it is built once from every
-    label in the dataset. If the order ever shifts between runs, yesterday's
-    checkpoint returns confidently wrong class names with no error at all.
+    The model outputs integers 0..26, not names; this list is the
+    translation. It is a fixed contract rather than a learned parameter, so
+    it is built once from every label in the dataset. If the order ever
+    shifted between runs, a saved checkpoint would return confidently wrong
+    class names with no error raised.
     """
     return sorted(df["intent"].unique().tolist())
 
 
 def build_intent2cat(df: pd.DataFrame) -> dict[str, str]:
-    """intent -> category, built from the file itself and never from the docs.
+    """intent -> category, derived from the file itself rather than the docs.
 
-    The published dataset card disagrees with the file in at least two ways
-    (it lists 10 categories, and it omits several intents), so the mapping is
-    derived and then verified. A failure of the assert below would mean one
-    intent appears under two categories - a finding to report, not something
-    to patch quietly.
+    The published dataset card disagrees with the file in at least two
+    ways (it lists 10 categories and omits several intents), so the
+    mapping is derived and then verified. A failure of the assertion below
+    would mean one intent maps to two categories - a finding to report,
+    not something to patch quietly.
     """
     per_intent = df.groupby("intent")["category"].nunique()
     ambiguous = per_intent[per_intent > 1]
     if len(ambiguous) > 0:
         raise ValueError(
             f"These intents map to more than one category: {ambiguous.to_dict()}. "
-            "This contradicts decision A1 (intent -> category is a function) and "
-            "must be reported, not silently fixed."
+            "This contradicts the assumption that intent -> category is a function "
+            "and must be reported, not silently fixed."
         )
     return df.groupby("intent")["category"].first().to_dict()
 
@@ -756,9 +771,10 @@ def build_intent2cat(df: pd.DataFrame) -> dict[str, str]:
 def sha256_of_split(df: pd.DataFrame) -> str:
     """A fingerprint of one split file: its texts and labels, in file order.
 
-    Text AND label, because a rebuild that shuffled the labels but kept the
-    texts would otherwise pass. Row order is included, because order is part
-    of the file - and it is deterministic given the seed.
+    Text and label are both included, since a rebuild that shuffled the
+    labels but kept the texts would otherwise pass. Row order is included
+    too, since order is part of the file's content and is deterministic
+    given the seed.
     """
     payload = "\n".join(f"{t}\t{y}" for t, y in zip(df["instruction"], df["intent"]))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
@@ -768,9 +784,9 @@ def sha256_of_full_corpus(df: pd.DataFrame) -> str:
     """Fingerprint of the full-corpus registry.
 
     Unlike sha256_of_split, this includes dup_group, split and
-    is_representative: those assignments ARE the file's content. A rebuild
-    that kept every text but moved one family to the other side must fail
-    the manifest check, not pass it.
+    is_representative, since those assignments are part of the file's
+    content. A rebuild that kept every text but moved one family to the
+    other side must fail the manifest check rather than pass it.
     """
     payload = "\n".join(
         f"{r}\t{t}\t{y}\t{g}\t{s}\t{int(rep)}"
@@ -785,16 +801,17 @@ def build_manifest(raw_path: Path | str, counts: dict, splits: dict[str, dict[st
                    threshold: float = NEAR_DUP_THRESHOLD, seed: int = SPLIT_SEED,
                    library_versions: dict | None = None,
                    full_corpus: pd.DataFrame | None = None) -> dict:
-    """The identity card of the split. Small, committed to git, and load-bearing.
+    """The identity card of the split: small, committed to git, and load-bearing.
 
-    The split CSVs themselves are gitignored - they are rebuilt from the seed.
-    This file is the proof that a rebuild produced the same thing. Without it,
-    an upstream dataset update or a scikit-learn major version bump moves the
-    split and nobody notices; with it, the bootstrap assert fires immediately.
+    The split CSVs themselves are gitignored and rebuilt from the seed.
+    This file is the proof that a rebuild produces the same result.
+    Without it, an upstream dataset update or a scikit-learn version bump
+    could move the split unnoticed; with it, the bootstrap assertion fires
+    immediately.
 
-    When the full-corpus registry is passed, its fingerprint is included too:
-    the family-to-side assignment is as much a part of the frozen split as the
-    six CSVs are.
+    When the full-corpus registry is passed, its fingerprint is included
+    too: the family-to-side assignment is as much a part of the frozen
+    split as the six CSVs are.
     """
     manifest = {
         "seed": seed,
@@ -828,13 +845,13 @@ def build_manifest(raw_path: Path | str, counts: dict, splits: dict[str, dict[st
 
 def verify_against_manifest(manifest: dict, splits: dict[str, dict[str, pd.DataFrame]],
                             full_corpus: pd.DataFrame | None = None) -> None:
-    """Re-hash the splits on disk and compare to the manifest. Raise on mismatch.
+    """Re-hashes the splits on disk and compares to the manifest, raising on mismatch.
 
-    This is the assert that makes the reproducibility claim self-verifying.
-    It runs at the top of every notebook, which is the only place it is useful:
-    a check that runs after the numbers are produced is decoration.
+    This assertion is what makes the reproducibility claim self-verifying.
+    It runs at the top of every notebook, the only place it is useful: a
+    check that runs after the numbers are produced is decoration.
 
-    `full_corpus` is optional so that a notebook which only reads the six split
+    `full_corpus` is optional so that a notebook reading only the six split
     CSVs can still verify them without rebuilding the registry.
     """
     problems = []
@@ -862,7 +879,7 @@ def verify_against_manifest(manifest: dict, splits: dict[str, dict[str, pd.DataF
 
 
 def write_json(obj, path: Path | str) -> None:
-    """Small helper so every JSON in the project is written the same way."""
+    """Writes JSON with consistent formatting, used for every JSON file in the project."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(obj, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -873,16 +890,16 @@ def write_json(obj, path: Path | str) -> None:
 # =========================================================================
 
 def token_lengths(texts: pd.Series | list[str], model_name: str = "Qwen/Qwen3-1.7B") -> np.ndarray:
-    """Length of every text in TOKENS of the actual model tokenizer.
+    """Length of every text in tokens of the actual model tokenizer.
 
-    In characters this question is unanswerable: max_length is counted in
-    tokens, and training time grows roughly with the square of the sequence
-    length. Measuring gives a real number (p99 here is 19) instead of the
-    naive default of 512, which would be ~250x the attention cost for the same
-    result.
+    Character counts cannot answer this question: max_length is measured
+    in tokens, and training time grows roughly with the square of the
+    sequence length. Measuring gives a real number (p99 is 19 here) rather
+    than the naive default of 512, which would cost roughly 250x the
+    attention for the same result.
 
-    transformers is imported inside the function on purpose: this module is
-    the CPU data module, and `import src.data` should not pull in a heavy
+    transformers is imported inside the function deliberately: this is the
+    CPU data module, and `import src.data` should not pull in a heavy
     library on a machine that is only rebuilding the split.
     """
     from transformers import AutoTokenizer
@@ -897,27 +914,29 @@ def token_lengths(texts: pd.Series | list[str], model_name: str = "Qwen/Qwen3-1.
 # =========================================================================
 
 def subgoal_separability(df: pd.DataFrame, seed: int = SPLIT_SEED) -> pd.DataFrame:
-    """How much does each intent label bundle more than one user goal?
+    """Measures how much each intent label bundles more than one user goal.
 
-    Method, per intent: cluster the RESPONSES into two groups (the NLG engine
-    wrote different reply templates for different user goals, so the response
-    text is a cheap proxy for what the customer actually wanted), then train a
-    small classifier to predict the response cluster from the INSTRUCTION
-    alone, 3-fold cross-validated.
+    Method, per intent: cluster the responses into two groups (the NLG
+    engine used different reply templates for different user goals, so
+    response text is a cheap proxy for what the customer actually wanted),
+    then train a small classifier to predict the response cluster from the
+    instruction alone, 3-fold cross-validated.
 
     Reading the `lift` column (accuracy minus the majority baseline):
-      ~0.0 - the two response clusters are template noise; the instruction does
-             not encode them, and the label is as fine as the data supports.
-      high - the customer's own words reliably signal a distinction that the
-             intent label throws away (subscribe vs unsubscribe, file-a-claim
-             vs complain, upgrade-tier vs switch-user).
+      ~0.0 - the two response clusters are template noise; the instruction
+             does not encode them, and the label is as fine as the data
+             supports.
+      high - the customer's own words reliably signal a distinction that
+             the intent label discards (subscribe vs unsubscribe, file-a-
+             claim vs complain, upgrade-tier vs switch-user).
 
-    This is a diagnostic, not training code: nothing it fits is kept, and
-    nothing here touches the split. What it measures is a LIMIT of the label
-    scheme: with high lift on most intents, the intent is coarser than the
-    customer's actual goal, so a correct intent does not by itself identify
-    what the customer wanted. That is a stated limitation of intent
-    classification on this taxonomy, not a defect in the model.
+    This is a diagnostic rather than training code: nothing it fits is
+    kept, and it does not touch the split. It measures a limit of the
+    label scheme: where lift is high on most intents, the intent is
+    coarser than the customer's actual goal, so a correct intent does not
+    by itself identify what the customer wanted. This is a stated
+    limitation of intent classification on this taxonomy, not a defect in
+    the model.
 
     k=2 is a deliberately coarse instrument - the true number of goals per
     intent is not necessarily two - so `lift` is a lower bound on the
@@ -951,50 +970,51 @@ def subgoal_separability(df: pd.DataFrame, seed: int = SPLIT_SEED) -> pd.DataFra
 # =========================================================================
 # 11. CANONICAL SPACE
 # =========================================================================
-# Everything below this line is MEASUREMENT. Nothing here is allowed to change
-# what gets written to disk: the six split CSVs, full_corpus.csv and the
-# manifest are frozen, and a function in this section that altered them would
-# invalidate every committed hash. These functions read the frozen split and
-# describe it.
+# Everything below this line is measurement. Nothing here changes what is
+# written to disk: the six split CSVs, full_corpus.csv and the manifest
+# are frozen, and a function in this section that altered them would
+# invalidate every committed hash. These functions read the frozen split
+# and describe it.
 #
-# The reason this section exists at all is a bug that was found by measuring
-# the same thing twice. Notebook 01 measured "how similar is a held-out row to
-# its nearest training row" in a TF-IDF space fitted on all 24,554 deduplicated
-# rows, and reported 0.24%. Notebook 02 measured what reads like the same
-# quantity, but re-fitted the vectoriser on train+val alone (12,013 rows), and
-# reported 1.70%. Neither number is wrong; they are simply not in the same
-# units, because min_df=2 over a smaller corpus keeps a smaller vocabulary and
-# every cosine moves. Two numbers describing "residual leakage" that differ by
-# 7x, with nothing on disk saying they are incomparable, is exactly how a wrong
-# figure reaches a report.
+# This section exists because of a discrepancy found by measuring the same
+# quantity twice. notebooks/01_data.ipynb measured "how similar is a
+# held-out row to its nearest training row" in a TF-IDF space fitted on
+# all 24,554 deduplicated rows, and reported 0.24%. notebooks/02_baselines.ipynb
+# measured what reads like the same quantity, but re-fitted the vectoriser
+# on train+val alone (12,013 rows), and reported 1.70%. Neither number is
+# wrong; they are simply not in the same units, since min_df=2 over a
+# smaller corpus keeps a smaller vocabulary and every cosine value shifts.
+# Two figures describing "residual leakage" that differ by 7x, with
+# nothing on disk marking them as incomparable, is exactly how an
+# incorrect figure reaches a report.
 #
-# The fix is not a bigger warning comment. It is to make the corpus that
-# defines the space a named, reusable object, so that measuring in a different
-# space becomes a deliberate act rather than an accident.
+# The fix is not a larger warning comment. It is to make the corpus that
+# defines the space a named, reusable object, so that measuring in a
+# different space is a deliberate act rather than an accident.
 
 
 def build_canonical_corpus(raw_dir: Path | str = DEFAULT_RAW_DIR,
                            download_if_missing: bool = False) -> pd.DataFrame:
-    """THE deduplicated frame. Every similarity number in this project uses it.
+    """The deduplicated frame that every similarity number in this project uses.
 
-    This is exactly the sequence notebooks/01_data.ipynb runs inline before it
-    clusters anything:
+    This is exactly the sequence notebooks/01_data.ipynb runs inline before
+    clustering anything:
 
         load_raw -> row_id -> normalise_whitespace -> drop_empty_rows
                  -> drop_exact_duplicates
 
-    and it returns the same 24,554 rows in the same order, so a vector space
-    fitted on this frame is the vector space the split was built in.
+    and it returns the same 24,554 rows in the same order, so a vector
+    space fitted on this frame is the vector space the split was built in.
 
-    Notebook 01 keeps its inline version, because watching the row count fall
-    step by step is most of what that notebook teaches. It asserts that this
-    function reproduces it rather than calling it, which gives one definition
-    and a proof that the two agree - better than one definition nobody checks.
+    Notebook 01 keeps its inline version, since watching the row count fall
+    step by step is most of what that notebook demonstrates. It asserts
+    that this function reproduces it rather than calling it directly,
+    giving one definition and a proof that the two agree.
 
-    The returned frame carries `pos`, its row position in that frame, which is
-    what a fitted matrix is indexed by. Prefer looking rows up by `row_id`
-    through the helpers below; `pos` is here so those helpers can do their job,
-    not so callers have to think in positions.
+    The returned frame carries `pos`, its row position in that frame, which
+    is what a fitted matrix is indexed by. Rows should generally be looked
+    up by `row_id` through the helpers below; `pos` exists so those helpers
+    can do their job, not so callers need to reason in positions.
     """
     df = load_raw(raw_dir, download_if_missing=download_if_missing)
     df = df.reset_index(names="row_id")
@@ -1005,14 +1025,15 @@ def build_canonical_corpus(raw_dir: Path | str = DEFAULT_RAW_DIR,
 
 
 def position_index(corpus: pd.DataFrame) -> dict[int, int]:
-    """row_id -> row position in the matrix fitted on `corpus`.
+    """Maps row_id -> row position in the matrix fitted on `corpus`.
 
-    A one-line function with a real job. Similarity code has to index a matrix
-    by position, but every frame in this project is identified by `row_id`, and
-    positions are a property of one particular frame. Passing positions taken
-    from `clean/train` into a matrix fitted on the full corpus does not raise -
-    it silently compares the wrong sentences and returns a plausible number.
-    Going through row_id every time removes that class of mistake.
+    A short function with a real purpose. Similarity code indexes a matrix
+    by position, but every frame in this project is identified by
+    `row_id`, and positions are specific to one particular frame. Passing
+    positions taken from `clean/train` into a matrix fitted on the full
+    corpus would not raise an error - it would silently compare the wrong
+    sentences and return a plausible number. Going through row_id every
+    time removes that class of mistake.
     """
     return {int(r): i for i, r in enumerate(corpus["row_id"])}
 
@@ -1020,36 +1041,37 @@ def position_index(corpus: pd.DataFrame) -> dict[int, int]:
 def similarity_profile(train: pd.DataFrame, evaluation: pd.DataFrame,
                        X: csr_matrix, corpus: pd.DataFrame,
                        chunk_size: int = 500) -> pd.DataFrame:
-    """Per evaluation row: how close is it to training, and to WHAT.
+    """Per evaluation row: how close it is to training, and to what.
 
     Returns one row per evaluation row:
       row_id           the evaluation row
       intent           its true label
-      max_sim_same     cosine to the nearest training row OF THE SAME INTENT
+      max_sim_same     cosine to the nearest training row of the same intent
       max_sim_any      cosine to the nearest training row, any intent
       nearest_intent   the label of that nearest training row
 
-    Splitting the similarity into two columns is the entire point, because the
-    single number that `max_similarity_to_train` returns bundles two opposite
-    phenomena:
+    Splitting the similarity into two columns is the central point, since
+    the single number `max_similarity_to_train` returns bundles two
+    opposite phenomena:
 
-    - `max_sim_same` is LEAKAGE. A held-out sentence that is a paraphrase of a
-      training sentence carrying the SAME label is a sentence the model has
+    - `max_sim_same` is leakage. A held-out sentence that paraphrases a
+      training sentence carrying the same label is one the model has
       effectively already been trained on, and scoring on it flatters the
       model.
-    - a high `max_sim_any` with a low `max_sim_same` is AMBIGUITY, which is the
-      opposite of leakage. The nearest neighbour is a near-identical sentence
-      under a DIFFERENT label ("refund {{X}}" vs "I expect a refund of {{X}}"),
-      so the row is not easier than average - it is one of the hardest rows in
-      the set, and it caps what any model can score.
+    - a high `max_sim_any` with a low `max_sim_same` is ambiguity, the
+      opposite of leakage. The nearest neighbour is a near-identical
+      sentence under a different label ("refund {{X}}" vs "I expect a
+      refund of {{X}}"), so the row is not easier than average - it is one
+      of the hardest rows in the set, and it caps what any model can
+      score.
 
-    Reporting the bundled number alone lets a reader read an ambiguity ceiling
-    as leftover leakage, which is the more damaging of the two readings and the
-    wrong one.
+    Reporting the bundled number alone would let a reader mistake an
+    ambiguity ceiling for leftover leakage, the more damaging and
+    incorrect of the two readings.
 
-    `X` must be a matrix fitted on `corpus`, in `corpus` row order. Rows are
-    looked up by row_id, so `train` and `evaluation` may come from any frame as
-    long as their rows exist in `corpus`.
+    `X` must be a matrix fitted on `corpus`, in `corpus` row order. Rows
+    are looked up by row_id, so `train` and `evaluation` may come from any
+    frame as long as their rows exist in `corpus`.
     """
     where = position_index(corpus)
     missing = sorted({int(r) for r in evaluation["row_id"]} - set(where)) \
@@ -1073,9 +1095,9 @@ def similarity_profile(train: pd.DataFrame, evaluation: pd.DataFrame,
     max_any = np.zeros(n, dtype=np.float32)
     nearest = np.empty(n, dtype=object)
 
-    # Chunked for the same reason max_similarity_to_train is: the dense product
-    # of every eval row against every train row is hundreds of MB, and it is
-    # never needed all at once.
+    # Chunked for the same reason as max_similarity_to_train: the dense
+    # product of every eval row against every train row is hundreds of MB,
+    # and is never needed all at once.
     for start in range(0, n, chunk_size):
         block = (B[start:start + chunk_size] @ A.T).toarray()
         for j in range(block.shape[0]):
@@ -1085,9 +1107,9 @@ def similarity_profile(train: pd.DataFrame, evaluation: pd.DataFrame,
             max_any[i] = row[best]
             nearest[i] = train_intents[best]
             same = train_intents == eval_intents[i]
-            # An intent with no training rows at all cannot leak into this row.
-            # It also cannot happen in a stratified split, so 0.0 here is a
-            # defined answer rather than a silent one.
+            # An intent with no training rows at all cannot leak into this
+            # row. This also cannot occur in a stratified split, so 0.0
+            # here is a defined answer rather than a silent one.
             max_same[i] = row[same].max() if same.any() else 0.0
 
     return pd.DataFrame({
@@ -1102,28 +1124,30 @@ def similarity_profile(train: pd.DataFrame, evaluation: pd.DataFrame,
 # =========================================================================
 # 12. RESIDUAL LEAKAGE, MEASURED IN TWO SPACES
 # =========================================================================
-# The sharpest question anyone can ask about this project is: "you deleted
-# everything your similarity metric called similar, and then measured that
-# same metric. What did you expect to find?"
+# The sharpest question this project invites is: if everything the
+# similarity metric calls similar has been removed, and that same metric
+# is then used to measure what remains, what should be expected?
 #
-# It is a fair question, and the honest answer is that in the clustering space
-# the answer is not merely low, it is ZERO BY CONSTRUCTION. Families are the
-# connected components of the >=0.90 graph within an intent, and a whole family
-# always lands on one side of the split. So a held-out row and a training row
-# that are same-intent and >=0.90 similar would have to be one family on two
-# sides, which cannot happen. Measured on the committed split, the largest
-# same-intent similarity observed is 0.8999 - the distribution is truncated
-# exactly at the threshold, which is what a constraint looks like, not what a
-# measurement looks like.
+# The honest answer is that in the clustering space the residual is not
+# merely low, it is zero by construction. Families are the connected
+# components of the >=0.90 graph within an intent, and a whole family
+# always lands on one side of the split. So a held-out row and a training
+# row that are same-intent and >=0.90 similar would have to be one family
+# on two sides, which cannot happen. Measured on the committed split, the
+# largest same-intent similarity observed is 0.8999 - the distribution is
+# truncated exactly at the threshold, which is the signature of a
+# constraint rather than a measurement.
 #
-# That does not make the split dirty. It makes the EVIDENCE circular, and a
-# circular claim is worth less in a report than a smaller honest one. The
-# remedy is to measure the same quantity in a feature space that had no part in
-# building the split, where the answer is free to be non-zero.
+# That does not make the split dirty. It makes the evidence circular, and
+# a circular claim carries less weight in a report than a smaller honest
+# one. The remedy is to measure the same quantity in a feature space that
+# played no part in building the split, where the answer is free to be
+# non-zero.
 
-# Word unigrams and bigrams: the standard text-classification feature space,
-# and - the reason it is here - it shares no construction with char_wb(3,5).
-# A residual measured here is not implied by how the families were built.
+# Word unigrams and bigrams: the standard text-classification feature
+# space, and - the reason it is used here - one that shares no
+# construction with char_wb(3,5). A residual measured here is not implied
+# by how the families were built.
 INDEPENDENT_TFIDF_PARAMS = dict(
     analyzer="word",
     ngram_range=(1, 2),
@@ -1134,31 +1158,31 @@ INDEPENDENT_TFIDF_PARAMS = dict(
 
 def residual_leakage_two_spaces(train: pd.DataFrame, evaluation: pd.DataFrame,
                                 corpus: pd.DataFrame) -> pd.DataFrame:
-    """The residual-leakage table that is not a tautology.
+    """Produces the residual-leakage table that avoids the circularity above.
 
-    Runs the identical measurement in both feature spaces and returns one row
-    per (space, relation):
+    Runs the identical measurement in both feature spaces and returns one
+    row per (space, relation):
 
       space     `char_wb(3,5)` - the space the families were defined in
                 `word(1,2)`    - an independent space, no part in the split
       relation  `same_intent`  - leakage
                 `any_intent`   - leakage plus ambiguity
 
-    Both spaces are fitted on the SAME `corpus`, so the only thing that differs
-    between the two rows is the analyzer. That matters: re-fitting on a smaller
-    frame changes min_df and every idf weight, and it was exactly that
-    difference - not a real change in leakage - that produced two incompatible
-    numbers (0.24% and 1.70%) for the same split.
+    Both spaces are fitted on the same `corpus`, so the only difference
+    between the two rows is the analyzer. That matters: re-fitting on a
+    smaller frame changes min_df and every idf weight, and it was exactly
+    that difference - not a real change in leakage - that produced two
+    incompatible numbers (0.24% and 1.70%) for the same split.
 
-    Read the table this way: in char_wb, `same_intent >= 0.90` is 0.00% and
-    that is guaranteed rather than observed. The number worth quoting is the
+    Reading the table: in char_wb, `same_intent >= 0.90` is 0.00% and that
+    is guaranteed rather than observed. The number worth quoting is the
     word-space one, which is small but was free to have been large.
 
-    Do not stop at the percentage. `nearest_train_pairs` returns the sentences
-    behind it, and on this split they turn out not to be sibling leakage at all
-    - they are pairs whose only distinguishing token was pruned by min_df=2.
-    A residual with an explanation is evidence; a residual without one is just
-    a number.
+    The percentage alone is not the full picture. `nearest_train_pairs`
+    returns the sentences behind it, and on this split they turn out not
+    to be sibling leakage at all, but pairs whose only distinguishing
+    token was pruned by min_df=2. A residual with an explanation is
+    evidence; a residual without one is only a number.
     """
     spaces = {
         "char_wb(3,5)": TFIDF_PARAMS,
@@ -1180,8 +1204,8 @@ def residual_leakage_two_spaces(train: pd.DataFrame, evaluation: pd.DataFrame,
                 "ge_0.80_pct": round(100 * float((sim >= 0.80).mean()), 2),
                 "median": round(float(np.median(sim)), 3),
                 # six decimals, not four: the char_wb same-intent maximum is
-                # 0.899984, and rounding that to 0.9000 makes a number that is
-                # strictly BELOW the threshold look like it sits on it.
+                # 0.899984, and rounding that to 0.9000 would make a number
+                # strictly below the threshold look like it sits on it.
                 "max": round(float(sim.max()), 6),
             })
     return pd.DataFrame(rows)
@@ -1192,37 +1216,36 @@ def nearest_train_pairs(train: pd.DataFrame, evaluation: pd.DataFrame,
                         threshold: float = NEAR_DUP_THRESHOLD,
                         same_intent_only: bool = True,
                         chunk_size: int = 500) -> pd.DataFrame:
-    """The actual sentence pairs behind a residual-leakage percentage.
+    """Returns the actual sentence pairs behind a residual-leakage percentage.
 
-    `residual_leakage_two_spaces` says that 2.36% of clean/val rows sit within
-    0.10 cosine of a same-intent training row in the independent word space.
-    That number is worth very little on its own, because it does not say WHY.
-    This function returns the pairs, and reading them is what turns the number
-    into a claim.
+    `residual_leakage_two_spaces` reports that 2.36% of clean/val rows sit
+    within 0.10 cosine of a same-intent training row in the independent
+    word space. That number alone does not explain why. This function
+    returns the pairs, which is what turns the percentage into a claim.
 
-    On the committed split the answer is specific and worth stating in the
-    report. The word-space residual is not sibling leakage; it is `min_df=2`
-    pruning the one token that distinguishes two sentences:
+    On the committed split the explanation is specific and worth stating
+    directly. The word-space residual is not sibling leakage; it is
+    `min_df=2` pruning the one token that distinguishes two sentences:
 
         val  : "do ya ship toFinland"      train: "do ya ship toUSA"
         val  : "makie complaint"           train: "complaint"
         val  : "seeingbill from {{X}}"     train: "seebills from {{X}}"
 
     "toFinland", "makie" and "seeingbill" each occur once in the corpus, so
-    min_df drops them, and what survives is identical. In char n-grams the same
-    pairs score 0.367 to 0.869 - all below the 0.90 clustering threshold, which
-    is why the families were right to keep them apart.
+    min_df drops them, and what remains is identical. In character n-grams
+    the same pairs score 0.367 to 0.869 - all below the 0.90 clustering
+    threshold, confirming the families were right to keep them apart.
 
-    So the residual is a property of the MEASUREMENT SPACE, not of the split.
-    That is a much better answer to "how do you know your split is clean" than
-    the zero that the clustering space returns by construction, because it is
-    an answer that could have come out the other way.
+    So the residual is a property of the measurement space, not of the
+    split. That is a stronger answer to "how do you know your split is
+    clean" than the zero the clustering space returns by construction,
+    because it is an answer that could have come out the other way.
 
-    Note the second-order finding, which belongs in the limitations paragraph:
-    for those rows the word-level TF-IDF baseline is not merely uncertain, it
-    is blind - two sentences with different meanings share one feature vector.
-    That is a property of the baseline, not of the data, and it is part of why
-    char_wb scores higher.
+    A second-order finding belongs in the limitations discussion: for
+    those rows the word-level TF-IDF baseline is not merely uncertain, it
+    is blind - two sentences with different meanings share one feature
+    vector. That is a property of the baseline rather than of the data,
+    and it is part of why char_wb scores higher.
     """
     where = position_index(corpus)
     train_pos = np.array([where[int(r)] for r in train["row_id"]])
@@ -1243,9 +1266,10 @@ def nearest_train_pairs(train: pd.DataFrame, evaluation: pd.DataFrame,
             i = start + j
             row = block[j]
             if same_intent_only:
-                # Copy first: `row` is a view into `block`, and zeroing it in
-                # place would corrupt nothing here but would if this loop ever
-                # read the block twice. Cheap insurance against a future edit.
+                # Copy first: `row` is a view into `block`, and zeroing it
+                # in place would not corrupt anything in this loop but
+                # would if it ever read the block twice. Cheap insurance
+                # against a future edit.
                 row = row.copy()
                 row[train_intents != eval_intents[i]] = 0.0
             best = int(row.argmax())
@@ -1274,49 +1298,49 @@ def nearest_train_pairs(train: pd.DataFrame, evaluation: pd.DataFrame,
 def cross_intent_neighbours(corpus: pd.DataFrame, X: csr_matrix,
                             threshold: float = NEAR_DUP_THRESHOLD,
                             chunk_size: int = 400) -> pd.DataFrame:
-    """Rows whose nearest neighbour is near-identical but carries a DIFFERENT label.
+    """Rows whose nearest neighbour is near-identical but carries a different label.
 
-    `find_label_conflicts` answers the exact-match version of this question and
-    returns nothing: no sentence in this dataset appears verbatim under two
-    intents. That is a real result, but it is also the easy version, and the
-    day-1 summary line drew too strong a conclusion from it ("no measurable
-    labelling ceiling from ambiguity"). The soft version is not empty:
-    "refund {{Currency Symbol}}{{Refund Amount}}" is labelled get_refund and
-    "I expect a refund of {{Currency Symbol}}{{Refund Amount}}" is labelled
-    track_refund, and no classifier can be right about both.
+    `find_label_conflicts` answers the exact-match version of this question
+    and returns nothing: no sentence in this dataset appears verbatim under
+    two intents. That is a real result, but an earlier reading of it drew
+    too strong a conclusion ("no measurable labelling ceiling from
+    ambiguity"). The soft version is not empty:
+    "refund {{Currency Symbol}}{{Refund Amount}}" is labelled get_refund
+    and "I expect a refund of {{Currency Symbol}}{{Refund Amount}}" is
+    labelled track_refund, and no classifier can be correct about both.
 
-    These are not defects to clean away. Removing them would be deleting the
-    hard cases to make the score look better, which is the exact failure this
-    project is built to avoid.
+    These are not defects to clean away. Removing them would mean deleting
+    the hard cases to inflate the score, which this project is built to
+    avoid.
 
-    Resist the obvious next step, which is to call this an accuracy ceiling.
-    It is not one, and the temptation was measured rather than reasoned about:
-    only 6 of the 2,120 clean/val rows have a cross-intent twin (the family
-    collapse removes most of them, since they cluster in the big invoice
-    families), and BOTH TF-IDF baselines classify all 6 correctly. A row with a
-    near-identical neighbour under another label is not unclassifiable - the
-    single token that differs, "see" against "get", is exactly what a
-    bag-of-words model keys on.
+    It is worth resisting the temptation to call this an accuracy ceiling.
+    It is not one, and this was checked rather than assumed: only 6 of the
+    2,120 clean/val rows have a cross-intent twin (the family collapse
+    removes most of them, since they cluster in the large invoice
+    families), and both TF-IDF baselines classify all 6 correctly. A row
+    with a near-identical neighbour under another label is not
+    unclassifiable - the single token that differs, "see" against "get",
+    is exactly what a bag-of-words model keys on.
 
-    What the measurement does support is a statement about the TAXONOMY: the
-    label scheme separates intents on distinctions this fine, so 0.83% of the
-    corpus sits one word away from a different label. That is a caution about
-    paraphrase robustness, and the companion to the subgoal-separability
-    finding - this taxonomy is fine where the wording is and coarse where the
-    goal is - not a bound on the score.
+    What the measurement does support is a statement about the taxonomy:
+    the label scheme separates intents on distinctions this fine, so 0.83%
+    of the corpus sits one word away from a different label. That is a
+    caution about paraphrase robustness, and the companion to the
+    subgoal-separability finding - this taxonomy is fine where the wording
+    is and coarse where the goal is - not a bound on the score.
 
-    Exhaustive, not sampled. The notebook's original 3,000-row draw was in fact
-    accurate for the frame it ran on - it estimated 1.23% against a true 1.21%
-    on the 26,872 pre-deduplication rows - so sampling was not the problem. The
-    reason to compute it exactly anyway is that it takes twenty seconds, and
-    the reason to be careful is the CORPUS: the same measurement over the
+    Exhaustive rather than sampled. An earlier 3,000-row sample was in fact
+    accurate for the frame it ran on, estimating 1.23% against a true 1.21%
+    on the 26,872 pre-deduplication rows, so sampling was not the source of
+    error. The exhaustive computation is used anyway because it takes
+    twenty seconds, and the corpus matters: the same measurement over the
     24,554 deduplicated rows the split is actually drawn from gives 0.83%.
-    Quote whichever one you mean, and say which corpus it is on.
+    Any quoted figure should state which corpus it is measured on.
 
     Each row is reported once, against its single nearest cross-intent
-    neighbour, so the count is "rows that have a cross-intent twin" - the right
-    unit for a ceiling. A mutual pair therefore appears twice, once from each
-    side.
+    neighbour, so the count is "rows that have a cross-intent twin" - the
+    correct unit for a ceiling. A mutual pair therefore appears twice, once
+    from each side.
     """
     intents = corpus["intent"].to_numpy()
     texts = corpus["instruction"].to_numpy()
@@ -1353,24 +1377,24 @@ def cross_intent_neighbours(corpus: pd.DataFrame, X: csr_matrix,
 # =========================================================================
 
 def whitespace_impact(df_raw: pd.DataFrame) -> dict:
-    """What does whitespace normalisation actually buy? Answer it in rows.
+    """Measures what whitespace normalisation actually removes, in rows.
 
-    This step is the one piece of cleaning applied unconditionally to every
-    row, and on the face of it it does nothing: the row count before and after
-    is identical, 26,872 both times, which is what the manifest records. A
-    grader who is deducting marks for cleaning that does not earn its keep is
-    entitled to ask what it is for.
+    This step is applied unconditionally to every row, and on its own
+    appears to do nothing: the row count before and after is identical,
+    26,872 both times, as the manifest records. It is reasonable to ask
+    what a cleaning step that removes no rows is for.
 
     It is for the step that runs immediately after it. Collapsing runs of
-    whitespace makes 551 texts change, and those changes cause 81 additional
-    (instruction, intent) pairs to be recognised as exact duplicates - 2,318
-    removed with normalisation against 2,237 without. Those 81 pairs are
-    sentences that differ only by a double space; without this step they are
-    two distinct rows that can land on opposite sides of the split and leak.
+    whitespace changes 551 texts, and those changes cause 81 additional
+    (instruction, intent) pairs to be recognised as exact duplicates -
+    2,318 removed with normalisation against 2,237 without. Those 81 pairs
+    are sentences that differ only by a double space; without this step
+    they would remain two distinct rows that can land on opposite sides of
+    the split and leak.
 
-    So the defence is not "it is standard practice". It is that the step
-    removes 81 leaking pairs, which is a number, and it is why this function
-    exists rather than a comment claiming the same thing.
+    So the justification is not general convention, but that the step
+    removes 81 leaking pairs, a number this function exists to compute
+    rather than assert in a comment.
     """
     normalised = drop_empty_rows(normalise_whitespace(df_raw))
     changed = int((df_raw["instruction"].astype(str)
@@ -1395,28 +1419,29 @@ def train_side_rows(full_corpus: pd.DataFrame, part: str = "train",
                     include_exact_duplicates: bool = False) -> pd.DataFrame:
     """Every member of every family on one side of the split, not just the representative.
 
-    The committed design keeps ONE row per template family, which drops 42% of
-    the corpus. There is a second design that removes exactly as much leakage
-    and throws nothing away: keep every row, and assign whole FAMILIES to a
-    side. That is what full_corpus.csv already records, so the alternative
-    training set needs no new split and no new hash - it is a different view of
-    the frozen one.
+    The committed design keeps one row per template family, dropping 42%
+    of the corpus. A second design removes exactly as much leakage while
+    discarding nothing: keep every row, and assign whole families to a
+    side. full_corpus.csv already records this, so the alternative
+    training set needs no new split and no new hash - it is a different
+    view of the frozen one.
 
-    The leakage guarantee is identical, and for the same reason: if a held-out
-    representative were >=0.90 similar to any member of a train-side family
-    under the same intent, the two would be connected and would therefore be
-    one family, which cannot straddle the split. Verified on the committed
-    files - same-intent nearest neighbour 0.000%, largest observed 0.8999,
-    verbatim overlap 0.
+    The leakage guarantee is identical, and for the same reason: if a
+    held-out representative were >=0.90 similar to any member of a
+    train-side family under the same intent, the two would be connected
+    and would therefore be one family, which cannot straddle the split.
+    Verified on the committed files - same-intent nearest neighbour
+    0.000%, largest observed 0.8999, verbatim overlap 0.
 
-    So the collapse is not what makes the split clean; the family assignment
-    is. The collapse is a separate decision about class weighting, and this
-    function is what lets its cost be measured instead of assumed.
+    So the collapse is not what makes the split clean; the family
+    assignment is. The collapse is a separate decision about class
+    weighting, and this function is what lets its cost be measured instead
+    of assumed.
 
-    `include_exact_duplicates=False` by default. Exact duplicates carry no text
-    the model has not already seen, so including them only reweights - keeping
-    them out makes the comparison about family members rather than about
-    repeated rows.
+    `include_exact_duplicates=False` by default. Exact duplicates carry no
+    text the model has not already seen, so including them would only
+    reweight the training set; excluding them keeps the comparison about
+    family membership rather than repeated rows.
     """
     if part not in SPLIT_PARTS:
         raise ValueError(f"part must be one of {SPLIT_PARTS}, got {part!r}")

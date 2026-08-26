@@ -1,33 +1,36 @@
 """
-The reference points. How good is this task without any language model at all?
+Reference points for evaluating the task without a language model.
 
-A baseline is not a failed attempt - it is the unit of measurement for
-everything that comes after it. "macro-F1 0.91" is a number with no scale;
-"0.91 against a floor of 0.06 and a TF-IDF baseline of 0.83" is a claim.
+A baseline defines the scale against which later results are judged: a
+macro-F1 score is uninformative on its own, but becomes a meaningful claim
+when stated against a floor and a non-neural reference model.
 
-Two baselines live here. The third planned baseline - the zero/few-shot
-untrained Qwen3 - needs a GPU and is therefore not in this file.
+Two baselines are implemented here. The third baseline - zero/few-shot
+scoring with an untrained Qwen3 - requires a GPU and lives outside this
+module.
 
-  1. Majority class. Always answer the most common training label, without
-     reading the text. The absolute floor: any model that does not beat it is
-     worse than a model that cannot read.
+  1. Majority class. Predicts the most frequent training label regardless
+     of input text. Establishes the floor: any model that does not beat it
+     performs worse than one that ignores the input entirely.
 
-  2. TF-IDF + logistic regression. Weighted word counting plus a linear
-     classifier. No pretraining, no language understanding, seconds on CPU.
-     On a 27-way task built from a few dozen templates this is a serious
-     opponent, and if the fine-tuned model does not clearly beat it, that is
-     the finding - not a failure to hide.
+  2. TF-IDF + logistic regression. A linear classifier over weighted word
+     counts, with no pretraining and negligible CPU cost. On a 27-way task
+     built from a small number of templates, this is a strong reference
+     point, and a fine-tuned model that does not clearly beat it is a
+     result worth reporting rather than a failure to hide.
 
-Both of them are also how the leakage measured on day 1 stops being a property
-of the DATA and becomes a difference in SCORE.
+Both baselines also convert the corpus-level leakage measured in
+notebooks/01_data.ipynb from a property of the data into a measured
+difference in score.
 
-Same house rules as src/data.py: pure functions, a table goes in and a table or
-an object comes out. No print, no plots, no writing to disk, and no torch -
-notebooks/02_baselines.ipynb is what runs these and shows the results.
+Functions here follow the same conventions as src/data.py: pure functions
+that take a table and return a table or an object, with no printing,
+plotting, disk I/O, or torch dependency - notebooks/02_baselines.ipynb runs
+these functions and reports the results.
 
-Scoring lives in src/evaluate.py, not here, because tomorrow's fine-tuned model
-must be scored by exactly the same code. A module named `baselines` is the
-wrong place to import a metric from.
+Scoring itself lives in src/evaluate.py rather than here, since the
+fine-tuned model must later be scored by identical code; a module named
+`baselines` is the wrong place to import a metric from.
 """
 
 from __future__ import annotations
@@ -42,13 +45,13 @@ from sklearn.pipeline import Pipeline
 
 from .data import SPLIT_SEED
 
-# The token that replaces every {{Placeholder}} in the ablation. Angle brackets
+# Token that replaces every {{Placeholder}} in the ablation. Angle brackets
 # so it cannot collide with a real word in the corpus.
 ENTITY_TOKEN = "<ENT>"
 
 # Matches {{Order Number}}, {{Person Name}}, {{Currency Symbol}} and ~30 more.
-# Non-greedy and newline-free on purpose: one runaway `{{` should swallow one
-# placeholder, not the rest of the sentence.
+# Non-greedy and newline-free so that one runaway `{{` swallows one
+# placeholder rather than the rest of the sentence.
 _PLACEHOLDER = re.compile(r"\{\{[^{}]*\}\}")
 
 
@@ -57,23 +60,22 @@ _PLACEHOLDER = re.compile(r"\{\{[^{}]*\}\}")
 # =========================================================================
 
 def majority_label(train: pd.DataFrame, label_column: str = "intent") -> str:
-    """The most frequent label in TRAIN. The model that does not read.
+    """Returns the most frequent label in `train`.
 
-    Learned from train and then applied to val, exactly like any other model -
-    which is the whole reason this is a function taking a frame rather than a
-    hardcoded string. Reading the majority label off the validation set would
-    be fitting on the test data to build the baseline that the test data is
-    then compared against.
+    Computed from the training split and applied to validation/test, as any
+    other model would be - this is why the function takes a frame rather
+    than a hardcoded string. Reading the majority label off the validation
+    set would fit the baseline on the same data it is later compared
+    against.
 
-    Note that the answer differs per split family here: after the family
-    collapse the clean and naive sets no longer have the same class
-    distribution, so their floors are two different numbers and must be
-    measured separately rather than assumed to be 1/27.
+    The result differs between split families: after the family collapse,
+    the clean and naive sets no longer share a class distribution, so their
+    floors must be measured separately rather than assumed to be 1/27.
     """
     counts = train[label_column].value_counts()
-    # value_counts sorts by count descending; ties break on first-seen order,
-    # which is deterministic for a given file. Recorded here because a tie
-    # would otherwise be an invisible source of run-to-run difference.
+    # value_counts sorts by count descending; ties break on first-seen
+    # order, which is deterministic per file and is recorded here to avoid
+    # an invisible source of run-to-run variation.
     return str(counts.index[0])
 
 
@@ -89,41 +91,39 @@ def build_tfidf_pipeline(analyzer: str = "word",
                          class_weight: str | None = None,
                          max_iter: int = 2000,
                          seed: int = SPLIT_SEED) -> Pipeline:
-    """Vectoriser + classifier as ONE object. Returns an unfitted Pipeline.
+    """Builds a vectoriser + classifier pipeline as a single unfitted object.
 
-    Why a Pipeline and not two separate objects: this is structural protection,
-    not tidiness. When the vectoriser and the classifier are a single estimator
-    there is exactly one `fit`, it receives exactly one frame, and it is
-    physically impossible to accidentally fit the vocabulary on validation
-    text. The alternative - vectorizer.fit_transform(all_text) followed by
-    clf.fit(train_slice) - is a two-line mistake that raises nothing and lifts
-    the score.
+    Combining the vectoriser and classifier into one Pipeline is a
+    structural safeguard: there is exactly one `fit` call, it receives
+    exactly one frame, and it is not possible to accidentally fit the
+    vocabulary on validation text. The alternative -
+    `vectorizer.fit_transform(all_text)` followed by `clf.fit(train_slice)`
+    - is a two-line mistake that raises no error and inflates the score.
 
-    Why word-level (1,2) by default, when day 1 used char_wb (3,5):
-    char_wb (3,5) is the space in which the near-duplicate FAMILIES were
-    defined and collapsed. Measuring the clean split with that same space is
-    circular - "I removed everything char-TF-IDF calls similar, then measured
-    how well char-TF-IDF does on the remainder". Word (1,2) is an independent
-    feature space, and it is also the standard text-classification baseline a
-    reader expects. The char_wb configuration is still run as a separate row,
-    because quantifying that bias is more convincing than avoiding it.
+    Word-level (1,2) is the default here, while char_wb (3,5) is the space
+    in which the near-duplicate families were defined and collapsed (see
+    notebooks/01_data.ipynb). Evaluating the clean split in that same space
+    would be circular: rows judged similar by char-level TF-IDF were
+    removed, then scored with char-level TF-IDF. Word (1,2) is an
+    independent feature space and the standard baseline for text
+    classification; the char_wb configuration is still run as a separate
+    row, since quantifying that bias is more informative than avoiding it.
 
-    On `lowercase=True`: this does not contradict the "minimal cleaning" rule
-    (README, "Every cleaning step, and what it buys"). That rule is about what
-    is written to disk, and its real content is that train and inference must
-    be treated identically.
-    Lowercasing inside the pipeline is applied to training text and to live
-    tickets by the same fitted object, so there is no train/serving skew.
+    `lowercase=True` does not conflict with the minimal-cleaning policy
+    documented in the README ("Every cleaning step, and what it buys"),
+    which governs what is written to disk. Lowercasing here is applied
+    identically to training text and live tickets by the same fitted
+    object, so there is no train/serving skew.
 
-    Known limitation, deliberately not fixed: scikit-learn's default word
-    token pattern drops punctuation and single characters, so the question mark
-    that distinguishes a query from a command is invisible to this baseline.
-    That is one of the things the char_wb row measures.
+    Known limitation, not addressed here: scikit-learn's default word
+    token pattern drops punctuation and single characters, so the question
+    mark that distinguishes a query from a command is invisible to this
+    baseline - one of the properties the char_wb row is measured against.
 
-    `seed` reaches LogisticRegression's random_state, which the lbfgs solver
-    does not use - lbfgs is deterministic given the data. It is passed anyway
-    so that swapping in a stochastic solver (saga) cannot silently introduce
-    unrecorded run-to-run variance.
+    `seed` reaches `LogisticRegression.random_state`, which the lbfgs
+    solver does not use (lbfgs is deterministic given the data). It is
+    passed regardless so that switching to a stochastic solver (e.g. saga)
+    cannot silently introduce unrecorded run-to-run variance.
     """
     vectoriser = TfidfVectorizer(
         analyzer=analyzer,
@@ -134,9 +134,8 @@ def build_tfidf_pipeline(analyzer: str = "word",
     )
     classifier = LogisticRegression(
         solver="lbfgs",
-        max_iter=max_iter,   # generous: a swallowed ConvergenceWarning reads as
-                             # a genuinely weak baseline, which flatters the
-                             # model it is compared against
+        max_iter=max_iter,   # generous, to avoid a swallowed ConvergenceWarning
+                             # understating this baseline's true strength
         class_weight=class_weight,
         random_state=seed,
     )
@@ -144,13 +143,13 @@ def build_tfidf_pipeline(analyzer: str = "word",
 
 
 def pipeline_converged(pipeline: Pipeline) -> bool:
-    """Did lbfgs actually finish, or did it hit the iteration cap?
+    """Reports whether lbfgs converged rather than hitting the iteration cap.
 
-    scikit-learn emits ConvergenceWarning for this, and a warning in a notebook
-    scrolls past behind a wall of output. A non-converged classifier does not
-    error - it returns an under-trained model, so the baseline looks weaker
-    than it is and every later comparison is flattered by the difference.
-    Calling this after every fit turns that into an assert.
+    scikit-learn emits a ConvergenceWarning in this case, which is easy to
+    miss among other notebook output. A non-converged classifier does not
+    raise an error - it silently returns an under-trained model, weakening
+    the baseline and flattering any comparison against it. Calling this
+    after every `fit` turns the warning into an assertable check.
     """
     return bool((pipeline.named_steps["clf"].n_iter_ < pipeline.named_steps["clf"].max_iter).all())
 
@@ -162,27 +161,28 @@ def pipeline_converged(pipeline: Pipeline) -> bool:
 def subsample_stratified(df: pd.DataFrame, n_rows: int,
                          seed: int = SPLIT_SEED,
                          stratify_column: str = "intent") -> pd.DataFrame:
-    """Draw exactly n_rows, keeping the class proportions of the input.
+    """Draws exactly `n_rows`, preserving the class proportions of `df`.
 
-    This is the size control. naive/train has 17,187 rows and clean/train has
-    9,893, so any score difference between them can be dismissed with "you
-    simply had less data". Drawing 9,893 rows from naive/train removes that
-    explanation and leaves one variable: whether the training set contains
-    siblings of the test sentences.
+    This is the size control. naive/train has 17,187 rows and clean/train
+    has 9,893, so any score difference between them could otherwise be
+    attributed to training-set size alone. Drawing 9,893 rows from
+    naive/train removes that explanation, leaving one remaining variable:
+    whether the training set contains siblings of the test sentences.
 
-    Stratified for the same reason the split itself is stratified - a flat
+    Stratified for the same reason the split itself is stratified: a flat
     random draw can leave a small intent with almost no rows, and macro-F1
-    weights that intent exactly as heavily as a large one, so the comparison
-    would then be measuring the luck of the draw.
+    weights that intent as heavily as a large one, which would turn the
+    comparison into a measurement of draw luck.
 
-    train_test_split is reused rather than reimplemented: it already does
-    proportional allocation with a fixed seed, and using the same mechanism as
-    split_stratified() keeps one behaviour in the project instead of two.
+    `train_test_split` is reused rather than reimplemented, since it
+    already performs proportional allocation with a fixed seed, and reusing
+    it keeps one splitting behaviour in the project instead of two.
 
-    `seed` here is the SUBSAMPLE seed, and it is not the split seed even though
-    it defaults to the same value. Which rows get drawn is the only stochastic
-    element in this entire baseline, so it is the only thing there is a noise
-    floor to measure - hence three draws (42/43/44) in the notebook.
+    `seed` here is the subsample seed, distinct from the split seed even
+    though it defaults to the same value. Which rows get drawn is the only
+    stochastic element in this baseline, and is the only source of variance
+    worth a noise-floor estimate (see the three draws at seeds 42/43/44 in
+    the notebook).
     """
     if n_rows >= len(df):
         raise ValueError(
@@ -199,43 +199,42 @@ def subsample_stratified(df: pd.DataFrame, n_rows: int,
 
 
 def normalise_placeholders(texts, token: str = ENTITY_TOKEN) -> list[str]:
-    """Replace every {{Placeholder}} with one shared token. The <ENT> ablation.
+    """Replaces every {{Placeholder}} with one shared token (the <ENT> ablation).
 
     The dataset is synthetic and writes entities as {{Order Number}},
-    {{Invoice Number}}, {{Person Name}} and so on. A real customer writes
-    "#84213". If a placeholder is concentrated in a couple of intents - and
-    {{Invoice Number}} very nearly is - the model can identify those intents
-    without reading a single real word. That is shortcut learning: it works
-    here and collapses on live traffic.
+    {{Invoice Number}}, {{Person Name}} and similar. A real customer would
+    write "#84213". If a placeholder is concentrated in a small number of
+    intents - {{Invoice Number}} is close to this - the model can identify
+    those intents without reading any other content, i.e. shortcut
+    learning that works here and collapses on live traffic.
 
     Collapsing every placeholder to one token and re-running the identical
-    baseline puts a number on it. A large drop is measured evidence of the
-    shortcut; no drop refutes the concern, and both are worth a paragraph.
+    baseline puts a number on this effect. A large drop is evidence of the
+    shortcut; no drop weighs against it.
 
-    Read the result carefully, though: this removes the placeholder's LEXICAL
-    content, and words like "invoice" inside {{Invoice Number}} are partly
-    legitimate signal too. The measured drop is therefore an upper bound on the
-    shortcut, not a clean estimate of it.
+    This removes the placeholder's lexical content only, and words such as
+    "invoice" inside {{Invoice Number}} are partly legitimate signal too.
+    The measured drop is therefore an upper bound on the shortcut, not a
+    clean estimate of it.
 
-    Takes and returns TEXTS, never a DataFrame. That is deliberate: it cannot
-    touch a label column, and it cannot return something that looks like a new
-    split. Decision E6 requires this ablation to run on the frozen split with
-    only the vectorised text changed.
+    Operates on texts rather than a DataFrame, so it cannot touch a label
+    column and cannot be mistaken for a new split. This keeps the ablation
+    running on the frozen split with only the vectorised text changed,
+    isolating the placeholder effect from any change in row membership.
     """
     return [_PLACEHOLDER.sub(token, str(t)) for t in texts]
 
 
 def placeholder_stats(texts, intents) -> pd.DataFrame:
-    """How concentrated is each placeholder in a small number of intents?
+    """Reports how concentrated each placeholder is within a small number of intents.
 
-    Supporting evidence for the ablation, and it answers the "why did you
-    expect a shortcut at all" question with a table instead of an intuition.
-    A placeholder appearing in one or two intents is a give-away token; one
-    spread evenly over twenty is just vocabulary.
+    Supporting evidence for the ablation above: a placeholder appearing in
+    one or two intents is a give-away token, while one spread evenly across
+    twenty is ordinary vocabulary.
 
     Returns one row per distinct placeholder: how many rows contain it, how
-    many intents it touches, and what share of its occurrences fall in its
-    single most common intent.
+    many intents it appears in, and the share of its occurrences falling in
+    its single most common intent.
     """
     rows = []
     frame = pd.DataFrame({"text": [str(t) for t in texts], "intent": list(intents)})

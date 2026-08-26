@@ -1,38 +1,42 @@
 #!/usr/bin/env python
-"""Write the size control as a committed, hashed file - and prove it is day 2's.
+"""Writes the size control as a committed, hashed file, verified against the baseline scores.
 
 --------------------------------------------------------------------------
 WHY THIS FILE EXISTS
 
-`naive_sub` is `naive/train` cut down to `clean/train`'s 9,893 rows. It is the
-control that answers the obvious objection to every naive-versus-clean number
-in this project: "the clean score is lower because you trained on less data".
-With the row counts equal, that explanation is gone and one variable is left.
+`naive_sub` is `naive/train` cut down to `clean/train`'s 9,893 rows. It is
+the control that answers the obvious objection to every naive-versus-clean
+number in this project: "the clean score is lower because you trained on
+less data". With the row counts equal, that explanation is removed and one
+variable remains.
 
-Day 2 drew it inside `02_baselines.ipynb` and never wrote it anywhere. That was
-survivable while it fed a two-second TF-IDF fit that could be re-run at will.
-It stops being survivable today, because a MODEL trains on it and other numbers
-are compared against that model. A frame redrawn next week has the right row
-count, the right class balance and the wrong rows, and it produces a believable
-score that cannot be compared to day 2's - with nothing raising anywhere.
+This subsample was previously drawn inline inside `02_baselines.ipynb` and
+never written to disk. That was survivable while it fed only a two-second
+TF-IDF fit that could be re-run at will. It is not survivable once a model
+trains on it and other numbers are compared against that model: a frame
+redrawn independently has the right row count and class balance but not
+necessarily the same rows, and produces a believable score that cannot be
+compared to the original one - with nothing raising anywhere.
 
 --------------------------------------------------------------------------
 THE PROOF IS THE SCORE, NOT THE SEED
 
-"I passed seed=42, so these are the same rows" is an argument about intent, and
-it fails silently the day scikit-learn changes how `train_test_split` allocates
-a stratified draw. So this script does not assert the seed: it refits day 2's
-own TF-IDF pipeline on the rows it just wrote and requires day 2's committed
-numbers back, on both evaluation sets, from results/metrics/baselines_summary.csv.
+"seed=42 was passed, so these are the same rows" is an argument about
+intent, and it fails silently the moment scikit-learn changes how
+`train_test_split` allocates a stratified draw. So this script does not
+assert the seed: it refits the original TF-IDF pipeline on the rows it
+just wrote and requires the previously committed numbers back, on both
+evaluation sets, from results/metrics/baselines_summary.csv.
 
-That is a real test because day 2 also swept the subsample seed over 42/43/44
-and committed all three. Seeds 43 and 44 land at 0.9847 and 0.9859 macro-F1 on
-naive/val against seed 42's 0.9874 - far outside any tolerance a rounding
-difference could hide in. A wrong draw cannot pass this.
+That is a real test because the baseline notebook also swept the
+subsample seed over 42/43/44 and committed all three results. Seeds 43
+and 44 land at 0.9847 and 0.9859 macro-F1 on naive/val against seed 42's
+0.9874 - far outside any tolerance a rounding difference could hide in. A
+wrong draw cannot pass this.
 
-`n_features` is checked alongside the scores and is the sharpest of the three:
-the vocabulary surviving `min_df=2` is a direct function of which rows are in
-the frame, and it is an integer.
+`n_features` is checked alongside the scores and is the sharpest of the
+three: the vocabulary surviving `min_df=2` is a direct function of which
+rows are in the frame, and it is an integer.
 
 --------------------------------------------------------------------------
     python tools/build_naive_sub.py          # verify, then write
@@ -60,17 +64,19 @@ PROCESSED = REPO_ROOT / "data" / "processed"
 MANIFEST = PROCESSED / "split_manifest.json"
 BASELINES = REPO_ROOT / "results" / "metrics" / "baselines_summary.csv"
 
-# The two day-2 runs whose rows this frame has to be, and where each was scored.
-# Named by their row in baselines_summary.csv rather than by their numbers, so
-# the targets are read from the committed table instead of typed here.
+# The two baseline runs whose rows this frame has to reproduce, and where
+# each was scored. Named by their row in baselines_summary.csv rather than
+# by their numbers, so the targets are read from the committed table
+# instead of typed here.
 DAY2_RUNS = (
     ("tfidf_naive_sub_seed42", "naive", "val"),
     ("tfidf_naive_sub_on_cleanval_seed42", "clean", "val"),
 )
 
-# Day 2 rounded every score to four decimals before committing them, so the
-# comparison is at that precision. It is not a loose tolerance: the nearest
-# wrong draw (seed 43) differs in the third decimal.
+# The baseline scores were rounded to four decimals before being
+# committed, so the comparison is performed at that precision. It is not a
+# loose tolerance: the nearest wrong draw (seed 43) differs in the third
+# decimal.
 PLACES = 4
 
 
@@ -80,19 +86,21 @@ def day2_targets() -> pd.DataFrame:
     missing = [name for name, _, _ in DAY2_RUNS if name not in table.index]
     if missing:
         raise LookupError(
-            f"{missing} are not in {BASELINES.name}. Without day 2's committed "
-            "numbers there is nothing to verify the draw against, and an "
-            "unverified draw is the thing this script exists to prevent.")
+            f"{missing} are not in {BASELINES.name}. Without the previously "
+            "committed baseline numbers there is nothing to verify the draw "
+            "against, and an unverified draw is the thing this script exists "
+            "to prevent.")
     return table
 
 
 def score_like_day2(train_frame: pd.DataFrame, eval_frame: pd.DataFrame,
                     labels: list[str]) -> dict:
-    """Day 2's headline pipeline, refitted. Defaults are the day-2 configuration.
+    """Refits the baseline headline pipeline; its defaults are the original configuration.
 
-    build_tfidf_pipeline()'s defaults ARE the word(1,2) / min_df=2 /
-    sublinear_tf configuration day 2 used for these two runs, so they are not
-    restated here - restating them is how the two drift apart.
+    `build_tfidf_pipeline()`'s defaults are the word(1,2) / min_df=2 /
+    sublinear_tf configuration used for these two runs, so they are not
+    restated here - restating them is how the two implementations would
+    drift apart.
     """
     pipe = B.build_tfidf_pipeline()
     with warnings.catch_warnings():
@@ -100,7 +108,7 @@ def score_like_day2(train_frame: pd.DataFrame, eval_frame: pd.DataFrame,
         pipe.fit(train_frame["instruction"], train_frame["intent"])
     assert B.pipeline_converged(pipe), (
         "lbfgs hit max_iter - the score would be an under-estimate and the "
-        "comparison against day 2 would fail for a reason unrelated to the rows")
+        "comparison against the baseline would fail for a reason unrelated to the rows")
 
     predicted = pipe.predict(eval_frame["instruction"])
     metrics = E.evaluate_predictions(eval_frame["intent"], predicted, labels)
@@ -109,7 +117,7 @@ def score_like_day2(train_frame: pd.DataFrame, eval_frame: pd.DataFrame,
 
 
 def verify(frame: pd.DataFrame, splits: dict, labels: list[str]) -> pd.DataFrame:
-    """Refit on the drawn rows and require day 2's numbers back. Raises if not."""
+    """Refits on the drawn rows and requires the previously committed numbers back. Raises if not."""
     targets = day2_targets()
     rows, failures = [], []
 
@@ -123,22 +131,22 @@ def verify(frame: pd.DataFrame, splits: dict, labels: list[str]) -> pd.DataFrame
         }
         for field, (mine, theirs) in checks.items():
             if mine != theirs:
-                failures.append(f"{run_name} {field}: day 2 {theirs}, this draw {mine}")
+                failures.append(f"{run_name} {field}: baseline {theirs}, this draw {mine}")
         rows.append({
-            "day 2 run": run_name,
+            "baseline run": run_name,
             "scored on": f"{split_name}/{part}",
             "accuracy": checks["accuracy"][0],
-            "day 2 accuracy": checks["accuracy"][1],
+            "baseline accuracy": checks["accuracy"][1],
             "macro-F1": checks["macro-F1"][0],
-            "day 2 macro-F1": checks["macro-F1"][1],
+            "baseline macro-F1": checks["macro-F1"][1],
             "n_features": checks["n_features"][0],
-            "day 2 n_features": checks["n_features"][1],
+            "baseline n_features": checks["n_features"][1],
         })
 
     if failures:
         raise AssertionError(
-            "these are not the rows day 2 drew:\n  " + "\n  ".join(failures) +
-            "\n\nDay 2's own seed sweep puts 43 and 44 several thousandths away "
+            "these are not the rows the baseline run drew:\n  " + "\n  ".join(failures) +
+            "\n\nThe baseline's own seed sweep puts 43 and 44 several thousandths away "
             "from 42, so this is not a rounding difference - it is a different "
             "subsample. Nothing scored against these rows would be comparable "
             "to any number already in the repository. Not written."
@@ -174,8 +182,8 @@ def main() -> int:
 
     comparison = verify(frame, splits, labels)
     print(comparison.to_string(index=False))
-    print("\n[PASS] refitting day 2's pipeline on these rows reproduces day 2's "
-          "committed scores on both evaluation sets.")
+    print("\n[PASS] refitting the baseline pipeline on these rows reproduces the "
+          "previously committed scores on both evaluation sets.")
 
     if args.check:
         print("\n--check: nothing written.")
@@ -187,8 +195,9 @@ def main() -> int:
     print(f"  written  data/processed/naive_sub/subsample_manifest.json")
     print(f"           sha256 {sub_manifest['sha256']}")
 
-    # Read it straight back through the verifying loader. Writing a file and
-    # trusting it is how day 2's draw was lost in the first place.
+    # Read it straight back through the verifying loader. Writing a file
+    # and trusting it without reading it back is how the original draw
+    # was lost in the first place.
     reloaded = D.load_naive_sub(PROCESSED)
     assert len(reloaded) == len(frame)
     print(f"\n  [PASS] load_naive_sub() reads it back and its sha256 verifies")

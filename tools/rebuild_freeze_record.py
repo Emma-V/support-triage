@@ -1,41 +1,43 @@
 #!/usr/bin/env python
-"""Put day 4's configuration freeze back on disk, from evidence already in git.
+"""Rebuilds the configuration freeze on disk, from evidence already committed to git.
 
 --------------------------------------------------------------------------
 WHY THIS FILE EXISTS
 
-Day 4 measured the between-seed noise floor, applied the pre-registered
-decision rule, and wrote `artifacts/config_freeze.json`. None of it reached
-the repository. Drive did not mount, so every output of the day went to
-/content/_local_runs and died with the runtime; and `.gitignore` matched
-`artifacts/*` with only three files on the allowlist, so the freeze record
-would have been skipped even if the final commit cell had run. No error, no
-output, no file.
+An earlier session measured the between-seed noise floor, applied the
+pre-registered decision rule, and wrote `artifacts/config_freeze.json`.
+None of it reached the repository: Drive did not mount, so every output of
+that session went to /content/_local_runs and was lost with the runtime,
+and `.gitignore` matched `artifacts/*` with only three files on the
+allowlist, so the freeze record would have been skipped even if the final
+commit cell had run. No error, no output, no file.
 
-The guide's entry condition for day 5 is blunt: without a freeze record the
-test set does not open. It is also the authority today's two training runs are
-checked against - a run that quietly used a different learning rate would turn
-a comparison between PROTOCOLS into a comparison between CONFIGURATIONS, and
-nothing in the resulting table would look wrong.
+The project rule for opening the test set is blunt: without a freeze
+record the test set does not open. The freeze record is also the
+authority the later training runs are checked against - a run that
+quietly used a different learning rate would turn a comparison between
+protocols into a comparison between configurations, and nothing in the
+resulting table would look wrong.
 
 --------------------------------------------------------------------------
 WHAT IS AND IS NOT RECOVERED
 
 The evidence is `notebooks/03b_noise_floor.ipynb` with its stored outputs,
-committed at adaebe9 on 2026-08-22 - before any test number existed anywhere
-in this project. That timestamp is the whole reason this is a recovery and not
-a re-decision.
+committed at adaebe9 on 2026-08-22 - before any test number existed
+anywhere in this project. That timestamp is the whole reason this is a
+recovery rather than a re-decision.
 
-Nothing here is retyped. The numbers are parsed out of the saved outputs, and
-the record is rebuilt by calling day 4's own `src.noise_floor.freeze_record()`
-on them - the same function, so the same document. The rebuild is then
-required to match, character for character, the 2,000-character prefix day 4
-printed. If a constant in src/train.py has drifted since, that comparison
-fails and this script refuses to write anything.
+Nothing here is retyped. The numbers are parsed out of the saved outputs,
+and the record is rebuilt by calling the original session's own
+`src.noise_floor.freeze_record()` on them - the same function, so the same
+document. The rebuild is then required to match, character for character,
+the 2,000-character prefix that session printed. If a constant in
+src/train.py has drifted since, that comparison fails and this script
+refuses to write anything.
 
-Deliberately NOT invented: the three seed adapters, `val_logits_r8_seed*.npy`,
-and the full run_06/07/08 records. Only their summary rows were ever printed,
-so only their summary rows come back.
+Deliberately not invented: the three seed adapters,
+`val_logits_r8_seed*.npy`, and the full run_06/07/08 records. Only their
+summary rows were ever printed, so only their summary rows come back.
 
 --------------------------------------------------------------------------
     python tools/rebuild_freeze_record.py          # verify, then write
@@ -76,9 +78,9 @@ EVIDENCE_COMMIT = "adaebe9"
 # =========================================================================
 # 1. READING THE NOTEBOOK
 # =========================================================================
-# Cells are found by what their output SAYS, never by index. A cell inserted
-# into 03b next week must not silently shift which output is parsed as the
-# seed table.
+# Cells are found by what their output contains, never by index. A cell
+# inserted into 03b later must not silently shift which output is parsed
+# as the seed table.
 
 def cell_outputs(notebook: dict) -> list[str]:
     """Every output of every cell, flattened to text, in notebook order."""
@@ -107,7 +109,7 @@ def find_block(blocks: list[str], *must_contain: str) -> str:
 
 
 def parse_seed_table(blocks: list[str]) -> pd.DataFrame:
-    """The three noise-floor runs, from the frame day 4 displayed.
+    """The three noise-floor runs, from the frame the original session displayed.
 
     pandas wraps a six-column frame into two printed blocks, so the numbers and
     the run names are parsed separately and then zipped back together. The row
@@ -124,7 +126,8 @@ def parse_seed_table(blocks: list[str]) -> pd.DataFrame:
         raise ValueError(
             f"parsed {len(rows)} score rows and {len(names)} run names from the "
             f"seed table, expected {len(NF.SEEDS)} of each. A standard deviation "
-            "over the wrong number of runs is not the noise floor day 4 measured."
+            "over the wrong number of runs is not the noise floor that was "
+            "originally measured."
         )
 
     table = pd.DataFrame({
@@ -164,7 +167,7 @@ def parse_granularity(blocks: list[str]) -> dict:
 
 
 def parse_hardware(blocks: list[str]) -> dict:
-    """GPU name and precision, from the hardware report day 4 printed."""
+    """GPU name and precision, from the hardware report the original session printed."""
     block = find_block(blocks, "gpu_name", "compute_capability", "bf16_supported")
     gpu = re.search(r"^\s*gpu_name\s+(.+?)\s*$", block, flags=re.MULTILINE)
     precision = re.search(r"^\s*precision\s+(\S+)\s*$", block, flags=re.MULTILINE)
@@ -177,8 +180,8 @@ def parse_measured_at_r(blocks: list[str]) -> int:
     """The r the noise floor was measured on - 8, the middle of the sweep.
 
     It differs from the chosen r on purpose (the estimate is deliberately not
-    taken around the highest scorer), and that difference is the reason day 4
-    had to build the freeze from constants instead of from a run record.
+    taken around the highest scorer), and that difference is the reason the
+    freeze had to be built from constants instead of from a run record.
     """
     block = find_block(blocks, "Building the freeze from the constants")
     match = re.search(r"was measured on \(r=(\d+)\)", block)
@@ -203,7 +206,7 @@ def _printed_value(printed: str, key: str) -> str:
 
 
 def parse_printed_freeze(blocks: list[str]) -> str:
-    """The 2,000-character prefix of the freeze record, as day 4 printed it.
+    """The 2,000-character prefix of the freeze record, as originally printed.
 
     This is the target. It is not a source for anything except the two values
     that were printed at full precision only here - `frozen_at` and
@@ -226,14 +229,15 @@ def parse_printed_freeze(blocks: list[str]) -> str:
 
 def synthesise_frozen_run(chosen_r: int, best_epoch: int, hardware: dict,
                           manifest: dict) -> dict:
-    """The run record day 4 handed to freeze_record(), rebuilt from constants.
+    """Rebuilds the run record originally handed to freeze_record(), from constants.
 
-    Day 4 did this itself, and its output says so: "the rule chose r=16, which
-    is not the r the noise floor was measured on (r=8). Building the freeze
-    from the constants." It deep-copied the seed-42 record, swapped in the
-    chosen r, its alpha and its best epoch, and renamed it. There is no
-    surviving record to copy here, so the same config is assembled directly
-    from the module-level constants those runs were themselves built from.
+    This step was performed originally as well, and its output says so:
+    "the rule chose r=16, which is not the r the noise floor was measured
+    on (r=8). Building the freeze from the constants." It deep-copied the
+    seed-42 record, swapped in the chosen r, its alpha and its best epoch,
+    and renamed it. There is no surviving record to copy here, so the same
+    config is assembled directly from the module-level constants those
+    runs were themselves built from.
 
     Every field is a constant, a manifest entry, or a parsed measurement.
     None is a literal typed into this file.
@@ -272,12 +276,13 @@ def synthesise_frozen_run(chosen_r: int, best_epoch: int, hardware: dict,
 
 
 def cross_check_constants(blocks: list[str], record: dict, measured_at_r: int) -> None:
-    """Day 4's own field-by-field table, used against today's constants.
+    """The field-by-field table originally printed, checked against the current constants.
 
     03b printed `same_configuration`, which lists the value of every frozen
     field as the three seed runs actually had it. If a constant in src/train.py
-    has been edited since - and nothing would announce that - the rebuilt
-    record disagrees with that table and the recovery is not a recovery.
+    has been edited since - and nothing would otherwise announce that - the
+    rebuilt record disagrees with that table and the recovery is not a
+    recovery.
 
     Two fields are expected to differ and are skipped: `r` and `lora_alpha`
     were measured at r=8 and the freeze describes the chosen r=16.
@@ -296,9 +301,10 @@ def cross_check_constants(blocks: list[str], record: dict, measured_at_r: int) -
                if i in values and values[i] not in ("True", "False")}
     if len(printed) < 15:
         raise LookupError(
-            f"only {len(printed)} of the {len(fields)} fields in day 4's "
-            "same_configuration table were paired with a value. A cross-check "
-            "that passes by being empty is worse than one that fails.")
+            f"only {len(printed)} of the {len(fields)} fields in the "
+            "originally printed same_configuration table were paired with a "
+            "value. A cross-check that passes by being empty is worse than "
+            "one that fails.")
 
     config = record["config"]
     mismatches = []
@@ -310,9 +316,9 @@ def cross_check_constants(blocks: list[str], record: dict, measured_at_r: int) -
         if shown.endswith("..."):
             # pandas truncated a long value (train_sha256) - compare the prefix
             if not repr(config[field]).startswith(shown[:-3]):
-                mismatches.append(f"{field}: day 4 {shown}, now {config[field]!r}")
+                mismatches.append(f"{field}: originally {shown}, now {config[field]!r}")
         elif repr(config[field]) != shown:
-            mismatches.append(f"{field}: day 4 {shown}, now {config[field]!r}")
+            mismatches.append(f"{field}: originally {shown}, now {config[field]!r}")
 
     # The three runs in that table ARE the noise-floor runs, so the r they show
     # must be the r the floor was measured at. If those two disagree, one of
@@ -324,8 +330,8 @@ def cross_check_constants(blocks: list[str], record: dict, measured_at_r: int) -
 
     if mismatches:
         raise AssertionError(
-            "the constants in src/train.py no longer agree with the run day 4 "
-            "described:\n  " + "\n  ".join(mismatches) +
+            "the constants in src/train.py no longer agree with the run "
+            "originally described:\n  " + "\n  ".join(mismatches) +
             "\nA freeze rebuilt from drifted constants describes a configuration "
             "that never ran. Fix the constant, or re-run 03b for real.")
 
@@ -368,9 +374,9 @@ def rebuild(notebook: dict) -> tuple[dict, dict, pd.DataFrame, str]:
     freeze["noise_floor"]["one_val_row_is_worth"] = per_row
     freeze["noise_floor"]["effective_floor"] = floor
     freeze["smoke"] = False
-    # freeze_record() stamps datetime.now(). A freeze re-stamped today would be
-    # a freeze written AFTER the models it governs, which is the one property
-    # the document exists to have.
+    # freeze_record() stamps datetime.now(). A freeze re-stamped at rebuild
+    # time would be a freeze written AFTER the models it governs, which is
+    # the one property this document exists to preserve.
     freeze["frozen_at"] = frozen_at
 
     noise_json = {
@@ -413,10 +419,10 @@ def verify(freeze: dict, printed: str) -> None:
     else:
         i = min(len(rebuilt), len(printed))
     raise AssertionError(
-        "the rebuild does not match what day 4 printed. First difference at "
-        f"character {i}:\n"
-        f"  rebuilt: ...{rebuilt[max(0, i - 60):i + 60]!r}\n"
-        f"  day 4  : ...{printed[max(0, i - 60):i + 60]!r}\n"
+        "the rebuild does not match what was originally printed. First "
+        f"difference at character {i}:\n"
+        f"  rebuilt : ...{rebuilt[max(0, i - 60):i + 60]!r}\n"
+        f"  original: ...{printed[max(0, i - 60):i + 60]!r}\n"
         "Do not write this file. Something that fed the freeze has moved.")
 
 
@@ -458,7 +464,8 @@ def main() -> int:
     for path in (FREEZE_OUT, NOISE_OUT, SEEDS_OUT):
         print(f"  written  {path.relative_to(REPO_ROOT).as_posix()}")
     print("\nNow check `git status` actually lists artifacts/config_freeze.json.")
-    print("The .gitignore rule that matches artifacts/* ate this exact file once.")
+    print("The .gitignore rule that matches artifacts/* previously caused this "
+          "exact file to be skipped.")
     return 0
 
 

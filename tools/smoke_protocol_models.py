@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Run day 5 step 18a's whole path on CPU, before it costs two GPU hours.
+"""Runs the whole protocol-models training path on CPU, before it costs two GPU hours.
 
 --------------------------------------------------------------------------
 WHAT THIS SAYS, AND WHAT IT DOES NOT

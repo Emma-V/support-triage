@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Run day 5 step 18b's whole path on CPU, before the test set is opened for real.
+"""Runs the whole held-out-evaluation path on CPU, before the test set is opened for real.
 
 --------------------------------------------------------------------------
 WHY THIS ONE MATTERS MORE THAN THE LAST ONE
@@ -21,9 +21,9 @@ noise and is never printed as though it meant anything.
 
 What it says is that the seal refuses and relents in the right places, that the
 readings apply the noise floor to the two comparisons it governs and withhold it
-from the one it does not, that the row-level files are written under names day 6
-can find, and that every shape in the path is the shape the next function
-expects.
+from the one it does not, that the row-level files are written under names later
+analysis can find, and that every shape in the path is the shape the next
+function expects.
 
     python tools/smoke_heldout.py
     python tools/smoke_heldout.py --static   # stage 1 only, ~1 second
@@ -127,9 +127,9 @@ def check_plan_is_coherent(freeze: dict) -> None:
 
     for plan_key in ("naive", "naive_sub"):
         assert plan_key in P.PLAN_BY_KEY, (
-            f"{plan_key} is scored today but was never trained - "
+            f"{plan_key} is scored here but was never trained - "
             f"src/protocol_models.py trains {sorted(P.PLAN_BY_KEY)}")
-    ok("every fine-tuned row was trained by day 5 step 18a")
+    ok("every fine-tuned row was trained by the protocol-models stage")
 
     ok(f"plan fingerprint {H.plan_fingerprint()} - this is what the seal will record")
 
@@ -185,7 +185,7 @@ def check_seal(workspace: Path, freeze: dict, manifest: dict) -> None:
         H.assert_seal_absent(path)
     except AssertionError as exc:
         assert "0.9800" in str(exc), "the refusal must quote the scores that already exist"
-        assert "ז4" in str(exc)
+        assert "TECHNICAL failure" in str(exc)
         ok("a sealed test set refuses to re-open, quoting the existing macro-F1")
     else:
         raise AssertionError("a sealed test set opened again without a reason")
@@ -459,7 +459,7 @@ def check_label_scoring(labels: list[str], evaluation: pd.DataFrame,
     paths = H.save_test_outputs("zero_shot", scores, rows,
                                 workspace / "results" / "metrics")
     assert np.load(paths[0]).shape == (len(evaluation), len(labels))
-    ok("the full 27-wide score matrix is kept, not only the argmax - day 3's regret, fixed")
+    ok("the full 27-wide score matrix is kept, not only the argmax")
 
 
 def check_overlap(train: pd.DataFrame, evaluation: pd.DataFrame) -> None:
