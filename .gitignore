@@ -133,12 +133,10 @@ artifacts/*
 *.bin
 *.safetensors
 *.model
-*.vec
-# Embeddings / cache of pretrained models
+# Cache of pretrained models
 .cache/
 cache/
 transformers_cache/
-sentence_transformers_cache/
 nltk_data/
 mlruns/
 wandb/

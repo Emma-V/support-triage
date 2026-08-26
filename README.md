@@ -1,8 +1,9 @@
 # support-triage
 
-Customer Support Ticket Triage + Auto-Draft Agent. Team project, Applied
-Language Models course. This part of the repository — data pipeline and
-baselines — is Emma Vainshtein's contribution.
+Customer support ticket triage: a 27-way intent classifier over customer support
+messages, fine-tuned with LoRA and measured against a leakage-controlled split.
+Team project, Applied Language Models course. This part of the repository —
+data pipeline and baselines — is Emma Vainshtein's contribution.
 
 <!-- TODO: project overview, team members, pipeline diagram, results summary — filled in at the end. -->
 
@@ -100,10 +101,11 @@ registry and the manifest, 6 MB in total. The raw file is not.
 - `data/processed/full_corpus.csv` - **committed** (2.8 MB), regenerated with the
   splits. The registry of **every** raw row: its template family, the split side
   that family landed on, and role flags (`is_representative`,
-  `is_exact_duplicate`). Stage 1
-  never reads it; it exists so stage 2 can build its retrieval corpus from
-  train-side families only, and so nothing is silently discarded by the
-  one-representative-per-family collapse.
+  `is_exact_duplicate`). Nothing trains on it. It exists so that the
+  one-representative-per-family collapse discards nothing silently — every one
+  of the 26,872 raw rows keeps a family and a split side — and it is what the
+  uncollapsed alternative in "What the family collapse costs" below is built
+  from, without needing a second split.
 - `data/processed/split_manifest.json` - **committed**. Seed, threshold, row counts
   and a sha256 per split (the full-corpus registry included). It holds no rows, and
   it is what proves a rebuild produced the same split. If the file upstream is ever
@@ -119,22 +121,23 @@ inline and saves a small curated set - `corpus_cross_intent_examples.csv` holds
 seven rows, one per conflicting intent pair, rather than the 203 rows behind them.
 File names say what a table contains, not which day it was produced.
 
-### Rules fixed now for the later stages (stage 2+)
+### Two properties of the committed split
 
-Three rules recorded while the split was being designed, because they are cheap to
-state now and expensive to rediscover later:
+Both are guarantees rather than conventions — they hold by construction, so no
+later step has to remember them:
 
-1. The stage-2 retrieval corpus is built from **train-side families only**
-   (`full_corpus.csv`, rows with `split == "train"`). A test-family row in the
-   corpus would let the end-to-end evaluation retrieve the answer key.
-2. **Filter by intent, rank by text.** Several intents measurably bundle more than
-   one user goal under one label - `newsletter_subscription` covers both subscribe
-   and unsubscribe, `switch_account` covers both upgrade-tier and switch-user (the
-   measurement is in `notebooks/01_data.ipynb`, "subgoal separability"). A reply
-   chosen from the intent alone answers the wrong goal for a large minority of
-   tickets; retrieval ranked by the ticket's own text recovers the distinction.
-3. Responses are joined back from `data/raw/` via `row_id`. No file under
-   `data/processed/` contains the `response` column.
+1. **A family never straddles the split.** Every member of a template family
+   inherits the side its representative landed on, so any view of
+   `full_corpus.csv` filtered by `split` is leak-free: it cannot contain a
+   sibling of a sentence held out on the other side. That is what lets
+   `train_side_rows()` build the uncollapsed training set out of the frozen
+   split instead of a new one.
+2. **No file under `data/processed/` contains the `response` column.** The
+   response is the templated answer, and a model that can see it reads the
+   label off its own input and scores ~0.999. Leaving it out of the files makes
+   that mistake impossible rather than merely discouraged; the same argument
+   applies to `flags`, which stays only because error slicing needs it and
+   never reaches the feature side.
 
 ### How to rebuild
 
@@ -216,9 +219,18 @@ Six things these numbers establish:
    near-identical neighbour under another label is not unclassifiable: the single token
    that differs, *see* against *get*, is exactly what a bag-of-words model keys on.
 
-   What the 0.83% does measure is how finely the **taxonomy** divides intents. That is
-   the argument for the stage-2 rule "filter by intent, rank by text", and a caution
-   about paraphrase robustness — not a bound on the score.
+   What the 0.83% does measure is how finely the **taxonomy** divides intents, and it
+   has a mirror image that belongs beside it. The subgoal-separability measurement in
+   `notebooks/01_data.ipynb` shows that several intents bundle more than one user goal
+   under a single label — `newsletter_subscription` covers both subscribe and
+   unsubscribe, `switch_account` covers both upgrade-tier and switch-user — and that
+   the customer's own wording reliably predicts which one is meant, while the label
+   throws that distinction away.
+
+   So the label scheme is fine where the *wording* is and coarse where the *goal* is.
+   A correct intent does not by itself say what the customer wanted, which is a real
+   limitation of intent classification on this taxonomy and a caution about paraphrase
+   robustness. Neither is a bound on the score.
 
 4. **Where the remaining errors are.** Typo-flagged rows (`Z`) score 0.955 against
    0.995 for the rest - a 0.041 gap, the largest of any slice, and the one place a

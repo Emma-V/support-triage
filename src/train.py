@@ -374,12 +374,11 @@ def build_base_model(model_name: str, labels: list[str], precision: str,
     """Qwen3 with a 27-way classification head on top, and nothing else.
 
     Decision B1: `AutoModelForSequenceClassification`, not a generative model
-    that writes the label as text. Four reasons hold on their own - it satisfies
-    the LoRA requirement, the metrics come out of the box, it cannot invent a
-    28th class, and softmax gives the confidence the stage-4 gate needs - and
-    two more come from the stages after this one: stage 2 filters the vector
-    store by intent, and a filter needs a value from a closed set; a stage-3
-    agent needs a typed tool.
+    that writes the label as text. Four reasons: it satisfies the LoRA
+    requirement, the metrics come out of the box, it cannot invent a 28th
+    class, and softmax gives a per-prediction confidence - which is what
+    notebooks/03c_confidence.ipynb measures, and what any decision to stop
+    answering automatically would have to be built on.
 
     `id2label` and `label2id` are built from the frozen artifacts/labels.json
     order and travel INSIDE the saved config. That is what makes the mapping a
@@ -1021,9 +1020,7 @@ def build_prompt(tokenizer, text: str, labels: list[str],
 
     `enable_thinking=False` is not optional for Qwen3. With thinking on, the
     generation prompt opens a reasoning block, and the tokens being scored stop
-    being the label - they become whatever the model would think first. The
-    same flag matters again in stage 3, where a `<think>` block would end up
-    inside a draft reply to a customer.
+    being the label - they become whatever the model would think first.
     """
     label_list = "\n".join(labels)
     messages = [{"role": "system", "content": PROMPT_SYSTEM if examples is None

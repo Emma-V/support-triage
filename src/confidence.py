@@ -1,11 +1,12 @@
 """
 Confidence, and what it is actually worth.
 
-Three of the six fields src/classifier.py promises are not the intent itself:
-`intent_confidence`, `top3`, and the decision of when to hand a ticket to a
-human instead of answering it. None of them was measured on day 3, because a
-score of 0.9994 says nothing about whether the number beside the prediction
-means anything.
+A macro-F1 of 0.9994 says which predictions were right. It says nothing about
+the number printed beside each one, and three questions hang on that number:
+whether the confidence is calibrated, whether a `top3` list is worth returning
+when the model hesitates, and at what score a ticket should stop being answered
+automatically and go to a human instead. None of the three was measured on
+day 3.
 
 Everything here runs on a saved logit matrix and never touches a GPU. That is
 deliberate, and it is the lesson of day 3: the run records from the r sweep
@@ -24,7 +25,9 @@ WHAT CONFIDENCE IS NOT. A high number here means "of the 27 intents, this one
 is most likely", not "this ticket is one of the 27". A message about something
 the taxonomy has no label for still gets a label, possibly a confident one - a
 classification head has no way to say "none of these". That is a stated limit
-of stage 1 and it belongs to the routing stage, not to this file.
+of the system as built. Where to put the cutoff is an operational decision and
+is left open; this file measures what the number is worth, not what to do
+with it.
 """
 
 from __future__ import annotations

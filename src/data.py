@@ -15,9 +15,10 @@ What goes in here:
   and therefore exactly the same numbers as the report.
 - Keep a registry of EVERY raw row (full_corpus.csv): its template family, the
   split side that family landed on, and whether it is the row that represents
-  the family in the classification files. Stage 1 never reads it; it is what
-  lets stage 2 (RAG) build a retrieval corpus from train-side families only,
-  so a sibling of a test sentence can never end up in the corpus.
+  the family in the classification files. The training files keep one row per
+  family, which drops 42% of the corpus; this registry is what makes that a
+  collapse rather than a deletion, and it is what the uncollapsed-alternative
+  ablation is built from.
 
 Note: no print statements and no plots in this file. Only functions that take
 a table and return a table. notebooks/01_data.ipynb is what runs them and
@@ -158,13 +159,13 @@ MAX_LENGTH = 32
 SPLIT_COLUMNS = ["row_id", "instruction", "intent", "category", "flags", "dup_group"]
 
 # The columns of data/processed/full_corpus.csv - the registry of EVERY raw row
-# (decision C6). Not a training file: stage 1 never reads it. It exists so that
-# stage 2 can build its retrieval corpus from train-side families only, and so
-# that the ~2.3k exact-duplicate rows (whose responses are unique) keep a split
-# assignment instead of silently falling outside the guarantee.
-# `response` is deliberately absent here too: stage 2 joins it back from
-# data/raw/ via row_id, so nothing under data/processed/ ever contains the
-# answer text.
+# (decision C6). Not a training file: nothing trains on it. It exists so that no
+# row is silently discarded by the one-representative-per-family collapse, and
+# so that the ~2.3k exact-duplicate rows keep a split assignment instead of
+# falling outside the guarantee. train_side_rows() reads it to build the
+# uncollapsed alternative the family-collapse ablation is measured against.
+# `response` is deliberately absent here too, for the same reason as above:
+# nothing under data/processed/ ever contains the answer text.
 FULL_CORPUS_COLUMNS = ["row_id", "instruction", "intent", "category", "flags",
                        "dup_group", "split", "is_representative", "is_exact_duplicate"]
 
@@ -621,17 +622,18 @@ def build_full_corpus(df_all: pd.DataFrame, df_deduped: pd.DataFrame,
     Why this file exists (decision C6). The clean split keeps one row per
     family, which is right for CLASSIFICATION - train and test stay template-
     uniform, so the score measures generalisation across templates - and wrong
-    as an archive: the other ~10k rows would simply be discarded, and they are
-    exactly the raw material stage 2 (RAG) needs, since every row's `response`
-    is unique. This function throws nothing away. Every row inherits the split
-    side of its family's representative:
+    as an archive: the other ~10k rows would simply be discarded, with no record
+    that they existed or which side of the split they belong to. This function
+    throws nothing away. Every row inherits the split side of its family's
+    representative:
 
     - one family -> one representative -> exactly one side, so the
       inheritance is well-defined;
-    - a whole family is always on ONE side, so a stage-2 corpus built as
-      `split == "train"` can never contain a sibling of a test sentence.
-      Contamination becomes impossible by construction instead of a
-      convention someone has to remember.
+    - a whole family is always on ONE side, so ANY view of this file filtered
+      by `split` is leak-free by construction: it cannot contain a sibling of a
+      sentence held out on the other side. That is what makes train_side_rows()
+      a different view of the frozen split rather than a second split needing
+      its own seed and its own hash.
 
     Exact duplicates (dropped before clustering) are re-attached through their
     (instruction, intent) key - unambiguous because the dataset has zero exact
@@ -916,10 +918,11 @@ def subgoal_separability(df: pd.DataFrame, seed: int = SPLIT_SEED) -> pd.DataFra
              vs complain, upgrade-tier vs switch-user).
 
     This is a diagnostic, not training code: nothing it fits is kept, and
-    nothing here touches the split. It is the measured basis for the stage-2
-    rule "filter by intent, RANK BY TEXT": with high lift on most intents,
-    mapping intent -> one canned reply would answer the wrong goal for a large
-    minority of tickets.
+    nothing here touches the split. What it measures is a LIMIT of the label
+    scheme: with high lift on most intents, the intent is coarser than the
+    customer's actual goal, so a correct intent does not by itself identify
+    what the customer wanted. That is a stated limitation of intent
+    classification on this taxonomy, not a defect in the model.
 
     k=2 is a deliberately coarse instrument - the true number of goals per
     intent is not necessarily two - so `lift` is a lower bound on the
@@ -1302,9 +1305,10 @@ def cross_intent_neighbours(corpus: pd.DataFrame, X: csr_matrix,
 
     What the measurement does support is a statement about the TAXONOMY: the
     label scheme separates intents on distinctions this fine, so 0.83% of the
-    corpus sits one word away from a different label. That is the evidence for
-    the stage-2 rule "filter by intent, rank by text", and it is a caution
-    about paraphrase robustness - not a bound on the score.
+    corpus sits one word away from a different label. That is a caution about
+    paraphrase robustness, and the companion to the subgoal-separability
+    finding - this taxonomy is fine where the wording is and coarse where the
+    goal is - not a bound on the score.
 
     Exhaustive, not sampled. The notebook's original 3,000-row draw was in fact
     accurate for the frame it ran on - it estimated 1.23% against a true 1.21%
