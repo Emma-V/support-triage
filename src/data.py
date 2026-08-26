@@ -113,8 +113,13 @@ HOLDOUT_FRACTION = 0.30
 VAL_SHARE_OF_HOLDOUT = 0.50
 
 # Cosine-similarity threshold above which two sentences are called siblings
-# of the same template. 0.90 is a choice, not a fact - notebooks/01_data.ipynb
-# justifies it with a scan over {0.80, 0.85, 0.90, 0.95}.
+# of the same template. This value is not typed in here by preference: it is
+# what the selection rule in notebooks/01_data.ipynb (section 1.3) returns.
+# The rule is fixed before any candidate is measured - take the LOOSEST
+# threshold, i.e. the one that keeps the most training data, at which the
+# resulting split is still clean - and the notebook applies it to a scan over
+# {0.80, 0.85, 0.90, 0.91, 0.92, 0.95} and asserts that it lands on this
+# constant. Change the rule or the scan and the assert is what complains.
 NEAR_DUP_THRESHOLD = 0.90
 
 # One vector space, defined once, used for three different jobs:
@@ -532,12 +537,19 @@ def near_duplicate_groups(X: csr_matrix, intents: pd.Series | np.ndarray,
 
 
 def threshold_scan(X: csr_matrix, intents: pd.Series | np.ndarray,
-                   thresholds=(0.80, 0.85, 0.90, 0.95)) -> pd.DataFrame:
-    """How many families survive at each threshold. This is what justifies 0.90.
+                   thresholds=(0.80, 0.85, 0.90, 0.91, 0.92, 0.95)) -> pd.DataFrame:
+    """How many families survive at each candidate threshold.
 
-    A flat curve around the chosen value means the choice is stable and one
-    sentence closes it in the report. A steep curve means the threshold is a
-    real sensitivity - which is a finding in its own right, not a problem.
+    One of the two tables the selection rule in notebooks/01_data.ipynb is
+    applied to: this one prices each candidate in data kept, and the leakage
+    measurement beside it prices the same candidates in leakage left behind.
+    NEAR_DUP_THRESHOLD is whatever the rule returns from the pair.
+
+    The candidates bracket the answer on both sides, 0.91 and 0.92 included so
+    that "why not just above it?" is answered by a measured row rather than by
+    a sentence. A flat curve would mean the choice barely matters; a steep one
+    means the threshold is a real sensitivity, which is a finding in its own
+    right and not a problem.
     """
     rows = []
     n = X.shape[0]
