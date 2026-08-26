@@ -570,12 +570,7 @@ def pick_representatives(df: pd.DataFrame, group_column: str = "dup_group",
                          seed: int = SPLIT_SEED) -> pd.DataFrame:
     """Keep exactly one row per family. This is what makes the clean split clean.
 
-    The representative is drawn at RANDOM (with a fixed seed), not taken as the
-    first row of the family. The dataset is ordered by construction: the first
-    member of a family tends to be the plain base variant, and the typo /
-    keyword-only / colloquial variants come after it. Always taking the first
-    would quietly build a clean set made of tidy grammatical sentences and
-    strip out exactly the noisy rows the robustness analysis needs.
+    The representative is drawn at RANDOM, with a fixed seed.
     """
     shuffled = df.sample(frac=1.0, random_state=seed)
     representatives = shuffled.drop_duplicates(subset=group_column)
