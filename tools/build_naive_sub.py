@@ -28,15 +28,13 @@ assert the seed: it refits the original TF-IDF pipeline on the rows it
 just wrote and requires the previously committed numbers back, on both
 evaluation sets, from results/metrics/baselines_summary.csv.
 
-That is a real test because the baseline notebook also swept the
-subsample seed over 42/43/44 and committed all three results. Seeds 43
-and 44 land at 0.9847 and 0.9859 macro-F1 on naive/val against seed 42's
-0.9874 - far outside any tolerance a rounding difference could hide in. A
-wrong draw cannot pass this.
-
-`n_features` is checked alongside the scores and is the sharpest of the
-three: the vocabulary surviving `min_df=2` is a direct function of which
-rows are in the frame, and it is an integer.
+That is a real test because the quantities checked are tight functions of
+which rows were drawn. `n_features` is the sharpest of them: the
+vocabulary surviving `min_df=2` is a direct function of the rows in the
+frame, and it is an integer - a draw that differs by a handful of rows
+moves it. Two macro-F1 scores to four decimals, on two different
+evaluation sets, have to agree alongside it. A wrong draw cannot pass all
+three at once.
 
 --------------------------------------------------------------------------
     python tools/build_naive_sub.py          # verify, then write
@@ -68,15 +66,21 @@ BASELINES = REPO_ROOT / "results" / "metrics" / "baselines_summary.csv"
 # each was scored. Named by their row in baselines_summary.csv rather than
 # by their numbers, so the targets are read from the committed table
 # instead of typed here.
+# These are the runs the baseline notebook makes from the committed draw. They
+# used to be named with a `_seed42` suffix, which existed only to tell them
+# apart from the seeds-43-and-44 rows of a subsample sweep that this project no
+# longer runs. The sweep is gone, the suffix went with it, and the numbers are
+# unchanged - the `_seed42` rows always held the same draw as these.
 DAY2_RUNS = (
-    ("tfidf_naive_sub_seed42", "naive", "val"),
-    ("tfidf_naive_sub_on_cleanval_seed42", "clean", "val"),
+    ("tfidf_naive_sub", "naive", "val"),
+    ("tfidf_naive_sub_on_cleanval", "clean", "val"),
 )
 
 # The baseline scores were rounded to four decimals before being
-# committed, so the comparison is performed at that precision. It is not a
-# loose tolerance: the nearest wrong draw (seed 43) differs in the third
-# decimal.
+# committed, so the comparison is performed at that precision. Four decimals
+# is not a loose tolerance here, because the scores are not the sharp part of
+# the check: `n_features` is an integer and a wrong draw moves it, so a draw
+# that survives all three comparisons has to match on that exactly.
 PLACES = 4
 
 

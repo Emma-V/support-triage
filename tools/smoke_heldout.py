@@ -20,7 +20,7 @@ Nothing about scores. The stub has randomly initialised layers; its macro-F1 is
 noise and is never printed as though it meant anything.
 
 What it says is that the seal refuses and relents in the right places, that the
-readings apply the noise floor to the two comparisons it governs and withhold it
+readings apply the resolution floor to the two comparisons it governs and withhold it
 from the one it does not, that the row-level files are written under names later
 analysis can find, and that every shape in the path is the shape the next
 function expects.
@@ -228,7 +228,7 @@ def fake_record(key: str, f1: float, accuracy: float | None = None) -> dict:
 
 def check_readings(freeze: dict) -> None:
     """The floor must govern the two comparisons it can, and withhold from the one it cannot."""
-    floor = freeze["noise_floor"]["effective_floor"]["floor"]
+    floor = freeze["resolution_floor"]["floor"]
 
     records = {
         "clean": fake_record("clean", 0.9600),
@@ -256,17 +256,17 @@ def check_readings(freeze: dict) -> None:
 
     headline = by_key["naive - clean"]
     assert headline["same test rows"] is False
-    assert "does not govern" in headline["vs noise floor"], headline["vs noise floor"]
+    assert "does not govern" in headline["vs resolution floor"], headline["vs resolution floor"]
     ok("reading 1 spans two test sets - the floor is withheld, not applied")
 
     controlled = by_key["naive_sub_on_clean - clean"]
     assert controlled["same test rows"] is True
-    assert "reportable" in controlled["vs noise floor"], controlled["vs noise floor"]
+    assert "reportable" in controlled["vs resolution floor"], controlled["vs resolution floor"]
     ok(f"reading 2 is on the same rows - judged, and {controlled['f1_macro']:+.4f} clears the floor")
 
     tiny = dict(records, tfidf=fake_record("tfidf", 0.9600 - floor / 2))
     verdict = H.readings(tiny, floor)
-    within = verdict.loc[verdict["minus"] == "clean - tfidf", "vs noise floor"].item()
+    within = verdict.loc[verdict["minus"] == "clean - tfidf", "vs resolution floor"].item()
     assert "within it" in within, within
     ok("a difference smaller than the floor is reported as no measurable difference")
 
@@ -281,7 +281,7 @@ def check_readings(freeze: dict) -> None:
 
 
 def check_val_test_gap(freeze: dict) -> None:
-    floor = freeze["noise_floor"]["effective_floor"]["floor"]
+    floor = freeze["resolution_floor"]["floor"]
     for val, test, expect in ((0.9994, 0.9600, "BELOW"),
                               (0.9600, 0.9994, "ABOVE"),
                               (0.9994, 0.9994, "did not overfit")):
@@ -493,7 +493,7 @@ def main() -> int:
         print("\nSTAGE 2 - the seal: refuse, relent on a reason, record the relenting")
         check_seal(workspace, freeze, manifest)
 
-        print("\nSTAGE 3 - the readings, and the noise floor applied only where it governs")
+        print("\nSTAGE 3 - the readings, and the resolution floor applied only where it governs")
         check_readings(freeze)
         check_val_test_gap(freeze)
 

@@ -94,9 +94,10 @@ EXPECTED_N_CATEGORIES = 11
 
 # The split seed, frozen for the life of the project.
 # This is NOT the training seed - that is a separate constant, in a
-# different file, and is the one that varies across the noise-floor runs.
-# Two seeds sharing a name is a common way to mistake "different data" for
-# "training variance".
+# different file, even though the project fixes both to 42 and never runs
+# anything under a second value. Two seeds sharing a name is a common way
+# to mistake "different data" for "training variance", and sharing a value
+# does not make them the same knob.
 SPLIT_SEED = 42
 
 # The subsample seed - a third, distinct "seed" in this project, named

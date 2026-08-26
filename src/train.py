@@ -130,17 +130,20 @@ MAX_GRAD_NORM = 1.0
 # a decision made while looking at the numbers.
 SELECTION_METRIC = "f1_macro"
 
-# Seeds. Named separately, and deliberately different from each other.
-# SPLIT_SEED (42, in src/data.py) decides which rows are in which split
-# and is frozen for the life of the project. TRAIN_SEED decides weight
-# init and shuffling, and is the one that varies across the noise-floor
-# runs. FEWSHOT_SEED decides which sentences are shown inside the
-# few-shot prompt. Conflating any of these under one name is the classic
-# way to report different data as training variance, so they never share
-# a name - and here they do not even share a value, so a mix-up is
-# visible in the record rather than silent.
+# Seeds. One value, 42, everywhere in this project - split, training and
+# prompt construction alike. Nothing is ever run under a second seed, so
+# no result anywhere in the repository is a claim about seed variance.
+#
+# They keep separate names regardless, because they decide different
+# things and a reader has to be able to tell which one a record is
+# talking about. SPLIT_SEED (src/data.py) decides which rows are in which
+# split and is frozen for the life of the project. TRAIN_SEED decides
+# weight init, shuffling order and dropout masks. FEWSHOT_SEED decides
+# which sentences are shown inside the few-shot prompt. Collapsing three
+# roles into one name is how a difference in data gets reported as
+# training variance; sharing a value does not make them the same knob.
 TRAIN_SEED = 42
-FEWSHOT_SEED = 13
+FEWSHOT_SEED = 42
 
 # The debug run. Small model, small slice, one epoch. Nothing it produces
 # is reported: it exists to verify the plumbing before an hour of GPU

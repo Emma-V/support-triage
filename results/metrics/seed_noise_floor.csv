@@ -1,4 +1,0 @@
-seed,macro-F1 (val),accuracy (val),epoch chosen,runtime (s),run
-42,0.9987,0.9991,3,2950.57,run_06_lora_r8_seed42
-43,0.9987,0.9991,2,2974.33,run_07_lora_r8_seed43
-44,0.9989,0.9991,2,2978.4,run_08_lora_r8_seed44

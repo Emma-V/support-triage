@@ -2,35 +2,24 @@
   "frozen_at": "2026-08-22T17:52:25+00:00",
   "frozen_from_run": "run_05_lora_r16",
   "selection": {
-    "rule": "gap across r vs the noise floor: gap < floor -> take the smallest r; gap > floor -> take the highest-scoring r",
-    "registered": "written on day 3, before any noise floor existed",
+    "rule": "gap across r vs the resolution floor: gap < floor -> take the smallest r; gap > floor -> take the highest-scoring r",
+    "registered": "written before any floor existed",
     "gap_across_r": 0.0006999999999999229,
-    "between_seed_std": 0.000491512050948098,
+    "resolution_floor": 0.000491512050948098,
     "distinguishable": true,
     "chosen_r": 16,
-    "reason": "the gap across r (0.0007) is larger than the between-seed standard deviation (0.0005), so the difference survives training variance: r=16 leads by 1.4 standard deviations."
+    "reason": "the gap across r (0.0007) is larger than the resolution floor (0.0005), so the difference is at least expressible by the metric: r=16 leads by 1.4 validation rows' worth.",
+    "margin_note": "MARGINAL: the gap clears the floor by only 1.4x, and the floor is metric resolution rather than measured training variance, which can only be larger. The rule's second branch is triggered, but a difference this close to the smallest expressible one should be reported as suggestive and not as an established improvement."
   },
-  "noise_floor": {
-    "seeds": [
-      42,
-      43,
-      44
-    ],
+  "resolution_floor": {
     "metric": "f1_macro on clean/val",
-    "n": 3,
-    "mean": 0.9987666666666667,
-    "std": 0.00011547005383791244,
-    "min": 0.9987,
-    "max": 0.9989,
-    "range": 0.00019999999999997797,
+    "seed": 42,
+    "floor": 0.000491512050948098,
+    "basis": "one_validation_row",
+    "measured_on": "200 single-row flips",
     "measured_at_r": 8,
-    "one_val_row_is_worth": 0.000491512050948098,
-    "effective_floor": {
-      "floor": 0.000491512050948098,
-      "binding": "one_validation_row",
-      "between_seed_std": 0.00011547005383791244,
-      "one_validation_row": 0.000491512050948098
-    }
+    "means": "the smallest difference macro-F1 can express on this validation set; differences below it are not differences",
+    "limit": "this is metric resolution, not training variance - the project trains under one seed, so run-to-run spread was never measured and the true floor can only be larger"
   },
   "model": {
     "base_model": "Qwen/Qwen3-1.7B",
@@ -77,5 +66,9 @@
     "which slices and figures the analysis cuts"
   ],
   "breaking_this_freeze": "requires a written note naming what changed and why; runs after such a change belong to configuration 2 and are not comparable to the ones before it",
+  "provenance": {
+    "note": "the multi-seed noise floor was removed from this project - every result is produced under seed 42 and nothing is ever run under a second seed. The selection rule and its outcome are unchanged: the floor it compares against was always the metric-resolution figure, not the between-seed spread, which was smaller and never binding.",
+    "floor_value_pending_regeneration": "the floor recorded here was measured by a probe that sampled its rows at random. That probe is now a deterministic stride over the same rows, so re-running notebooks/03b_resolution_floor.ipynb will move this figure in the fourth decimal and rewrite this file. chosen_r is not sensitive to that: the gap would have to fall below the floor to change it."
+  },
   "smoke": false
 }

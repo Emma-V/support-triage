@@ -179,10 +179,12 @@ def subsample_stratified(df: pd.DataFrame, n_rows: int,
     it keeps one splitting behaviour in the project instead of two.
 
     `seed` here is the subsample seed, distinct from the split seed even
-    though it defaults to the same value. Which rows get drawn is the only
-    stochastic element in this baseline, and is the only source of variance
-    worth a noise-floor estimate (see the three draws at seeds 42/43/44 in
-    the notebook).
+    though it holds the same value - which rows get drawn and how the data
+    was partitioned are different decisions, and a record naming the wrong
+    one would not look wrong. Which rows get drawn is the only stochastic
+    element in this baseline, and it is fixed: the draw is made once, at
+    seed 42, and written to data/processed/naive_sub/ so that every later
+    comparison reads the same rows instead of redrawing them.
     """
     if n_rows >= len(df):
         raise ValueError(

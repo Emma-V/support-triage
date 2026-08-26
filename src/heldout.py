@@ -29,11 +29,11 @@ THE THREE THINGS DEFINED HERE, AND WHY EACH NEEDS ITS OWN MODULE
    unrealistic - it is made impossible to perform silently.
 
 3. `readings()` - the three differences the results table exists to
-   support, each carrying whether the noise floor applies to it. The
+   support, each carrying whether the resolution floor applies to it. The
    dangerous case is the headline comparison, which spans two different
-   test sets: the between-seed floor measured on one of them does not
-   govern it, and applying a floor uniformly to every row in a table is
-   the natural mistake to make.
+   test sets: a floor computed on the rows of one of them does not govern
+   it, and applying a floor uniformly to every row in a table is the
+   natural mistake to make.
 
 --------------------------------------------------------------------------
 WHAT THIS MODULE DELIBERATELY DOES NOT DO
@@ -187,7 +187,7 @@ def same_test_rows_as_headline(key: str) -> bool:
     """Reports whether this row is measured on the same sentences as the headline row.
 
     This single question decides whether a difference between two rows can
-    be judged against the noise floor at all. Implemented as a function of
+    be judged against the resolution floor at all. Implemented as a function of
     the plan rather than a hand-maintained field, so it cannot drift away
     from `test`.
     """
@@ -512,8 +512,8 @@ def results_table(records: dict) -> pd.DataFrame:
 
 
 # The three differences the table exists to support. `same_rows` is not a
-# note on them - it is what decides whether the noise floor may be applied
-# at all.
+# note on them - it is what decides whether the resolution floor may be
+# applied at all.
 READINGS = (
     {
         "key": "headline_inflation",
@@ -543,7 +543,7 @@ READINGS = (
         "minuend": "clean",
         "subtrahend": "tfidf",
         "for": "the question of when a large model is worth bringing at all.",
-        "caveat": "read against the noise floor, never alone. The linear baseline "
+        "caveat": "read against the resolution floor, never alone. The linear baseline "
                   "reached 0.9787 macro-F1 on clean/val, so there was about 0.021 of "
                   "headroom in existence before anything was trained.",
     },
@@ -554,15 +554,21 @@ def judge(delta: float, floor: float, same_rows: bool) -> dict:
     """Determines whether a difference is large enough to report, and whether the floor even applies.
 
     These are two distinct questions, and conflating them is the mistake
-    this function exists to prevent. The noise floor (see
-    notebooks/03b_noise_floor.ipynb) is the spread between three training
-    runs of one configuration scored on one evaluation set. It says what a
-    difference has to clear to count as real between models measured on
-    those rows. It says nothing about a difference between two models
-    measured on two different sets of sentences, since that difference has
-    a second source the floor never sampled.
+    this function exists to prevent. The resolution floor (see
+    notebooks/03b_resolution_floor.ipynb) is the smallest difference
+    macro-F1 can express on one evaluation set - what one row changing its
+    answer is worth. It says what a difference has to clear to be a
+    difference at all between models measured on those rows. It says
+    nothing about a difference between two models measured on two
+    different sets of sentences, since that difference has a second source
+    the floor does not describe.
 
-    `applicable` is therefore returned separately from `reportable`, and
+    The floor is metric resolution, not training variance: this project
+    trains under one seed, so run-to-run spread was never measured. That
+    makes every verdict here a lower bound - a real floor could only be
+    larger, so a difference called unreportable stays unreportable.
+
+    `floor_applies` is therefore returned separately from `reportable`, and
     `reportable` is None rather than False when the floor does not apply -
     "cannot be judged by this instrument" and "judged and found too small"
     must not print alike.
@@ -575,15 +581,16 @@ def judge(delta: float, floor: float, same_rows: bool) -> dict:
     }
     if not same_rows:
         result["reportable"] = None
-        result["verdict"] = ("the two rows are different sentences - the noise floor "
-                             "does not govern this difference")
+        result["verdict"] = ("the two rows are different sentences - the resolution "
+                             "floor does not govern this difference")
         return result
 
     result["reportable"] = bool(abs(delta) > floor)
     result["verdict"] = (
-        f"{abs(delta) / floor:.1f}x the noise floor - reportable" if abs(delta) > floor
-        else f"{abs(delta) / floor:.1f}x the noise floor - within it, report as no "
-             "measurable difference")
+        f"{abs(delta) / floor:.1f}x the resolution floor - reportable"
+        if abs(delta) > floor
+        else f"{abs(delta) / floor:.1f}x the resolution floor - within it, report as "
+             "no measurable difference")
     return result
 
 
@@ -608,7 +615,7 @@ def readings(records: dict, floor: float, metric: str = "f1_macro") -> pd.DataFr
             "minus": f"{reading['minuend']} - {reading['subtrahend']}",
             metric: round(delta, 4),
             "same test rows": same,
-            "vs noise floor": verdict["verdict"],
+            "vs resolution floor": verdict["verdict"],
             "caveat": reading["caveat"],
         })
     return pd.DataFrame(rows)
@@ -638,14 +645,15 @@ def val_test_gap(val_metrics: dict, test_metrics: dict, floor: float,
         "floor": round(float(floor), 6),
         "in_floor_units": round(float(abs(gap) / floor), 1) if floor else None,
         "reading": (
-            "the test score is BELOW the validation score by more than the noise "
-            "floor - some of the validation number was selection, and the size of "
-            "the drop is the size of it"
+            "the test score is BELOW the validation score by more than the "
+            "resolution floor - some of the validation number was selection, and "
+            "the size of the drop is the size of it"
             if gap > floor else
-            "the test score is ABOVE the validation score by more than the noise "
-            "floor - the validation set was, if anything, the harder sample"
+            "the test score is ABOVE the validation score by more than the "
+            "resolution floor - the validation set was, if anything, the harder "
+            "sample"
             if gap < -floor else
-            "val and test agree to within the noise floor - the choices made "
+            "val and test agree to within the resolution floor - the choices made "
             "against the validation set did not overfit it measurably"),
     }
 
