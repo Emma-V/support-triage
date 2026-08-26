@@ -32,7 +32,7 @@ READING ORDER (the file is written to be read top to bottom)
   4. Near-duplicates    - the interesting part: group sibling sentences.
   5. Splitting          - stratified 70/15/15, twice (clean and naive).
   6. Leakage measurement- how close is a test row to its nearest train row.
-  7. Artifacts          - labels / intent->category / urgency, the contract.
+  7. Artifacts          - labels / intent->category, the contract.
   8. Manifest           - the identity card of the split.
   9. Token lengths      - instruction lengths in real model tokens.
   10. Taxonomy diagnostic - how much each intent label bundles distinct goals.
@@ -162,43 +162,6 @@ SPLIT_COLUMNS = ["row_id", "instruction", "intent", "category", "flags", "dup_gr
 # answer text.
 FULL_CORPUS_COLUMNS = ["row_id", "instruction", "intent", "category", "flags",
                        "dup_group", "split", "is_representative", "is_exact_duplicate"]
-
-# The urgency table (decision A2). A business rule, not a learned task.
-# Written once, by hand, and validated against the real 27 labels below.
-URGENCY_PRIOR: dict[str, str] = {
-    # high - the customer is blocked from acting, or their money is stuck
-    "payment_issue": "high",
-    "complaint": "high",
-    "get_refund": "high",
-    "track_refund": "high",
-    "cancel_order": "high",
-    "delete_account": "high",
-    "recover_password": "high",
-    "registration_problems": "high",
-    "contact_human_agent": "high",
-    # medium - time-sensitive, but there is a window to act
-    "change_order": "medium",
-    "track_order": "medium",
-    "change_shipping_address": "medium",
-    "check_invoice": "medium",
-    "get_invoice": "medium",
-    "check_refund_policy": "medium",
-    "check_cancellation_fee": "medium",
-    "edit_account": "medium",
-    "switch_account": "medium",
-    "contact_customer_service": "medium",
-    "delivery_period": "medium",
-    # low - an information request, or a proactive action
-    "newsletter_subscription": "low",
-    "review": "low",
-    "create_account": "low",
-    "place_order": "low",
-    "set_up_shipping_address": "low",
-    "delivery_options": "low",
-    "check_payment_methods": "low",
-}
-
-URGENCY_FALLBACK = "medium"
 
 
 # =========================================================================
@@ -743,7 +706,7 @@ def exact_overlap(train: pd.DataFrame, test: pd.DataFrame, column: str = "instru
 
 
 # =========================================================================
-# 7. ARTIFACTS  (the contract: three small JSON files, committed on purpose)
+# 7. ARTIFACTS  (the contract: two small JSON files, committed on purpose)
 # =========================================================================
 
 def build_labels(df: pd.DataFrame) -> list[str]:
@@ -775,20 +738,6 @@ def build_intent2cat(df: pd.DataFrame) -> dict[str, str]:
             "must be reported, not silently fixed."
         )
     return df.groupby("intent")["category"].first().to_dict()
-
-
-def build_urgency_prior(labels: list[str]) -> dict[str, str]:
-    """The hand-written urgency rule, validated against the real label list.
-
-    Two checks: every one of the 27 intents has an entry (a missing key would
-    silently fall back to 'medium' at routing time), and no entry refers to an
-    intent that does not exist (a typo in the table).
-    """
-    missing = sorted(set(labels) - set(URGENCY_PRIOR))
-    unknown = sorted(set(URGENCY_PRIOR) - set(labels))
-    if missing or unknown:
-        raise ValueError(f"urgency table mismatch - missing: {missing}, unknown: {unknown}")
-    return {intent: URGENCY_PRIOR[intent] for intent in labels}
 
 
 # =========================================================================

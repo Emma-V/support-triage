@@ -109,20 +109,19 @@ data/processed/naive_sub/*
 # ===== Models and heavy outputs =====
 artifacts/*
 !artifacts/.gitkeep
-# The three contract files must specifically be in git:
+# The two contract files must specifically be in git:
 # they are tiny, and they define the class order the model returns. If they are
 # not in the repo, a saved checkpoint returns wrong answers without any error.
 # Again - exempt by full filename, not by a directory-level exception.
 !artifacts/labels.json
 !artifacts/intent2cat.json
-!artifacts/urgency_prior.json
-# The freeze record is a fourth one, and it was missing here until day 4 proved
+# The freeze record is a third one, and it was missing here until day 4 proved
 # why that matters. 03b writes artifacts/config_freeze.json, prints "COMMIT THESE
 # BEFORE RUNNING THE NEXT CELL", and then lists what `git status` can see - which
 # did not include the freeze, because of the rule four lines above. It was written,
 # it was never committed, and nothing said so. It records which r was chosen and
 # the pre-registered rule that chose it, which is the difference between a decision
-# and three numbers, so it belongs in git for the same reason the other three do.
+# and three numbers, so it belongs in git for the same reason the other two do.
 !artifacts/config_freeze.json
 *.pkl
 *.pickle

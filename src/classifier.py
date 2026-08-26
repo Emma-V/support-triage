@@ -9,7 +9,6 @@ for each one:
 - top3            the three most likely intents, for when the model hesitates
 - category        one of the 11 categories. Not predicted, just looked up from
                   the intent in a fixed table
-- urgency         urgency level. Also looked up from the intent, not learned
 - model_version   which version of the model produced this answer
 
 Why this is its own file and not a notebook cell: stage 2 (RAG) and stage 3
