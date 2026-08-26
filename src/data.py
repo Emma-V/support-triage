@@ -141,7 +141,7 @@ TFIDF_PARAMS = dict(
 # How many tokens the model is given per ticket. MEASURED, not guessed:
 # token_lengths() over the whole corpus with the real Qwen3 tokenizer gave
 # p99 = 19 and max = 24, so 32 truncates exactly zero rows with room to spare
-# (figure results/figures/02_token_lengths.png).
+# (printed in section 1.7 of notebooks/01_data.ipynb).
 # It lives here rather than in the training file because it is a property of
 # THIS DATASET, and because the alternative is retyping it from a notebook
 # output tomorrow. Attention cost grows with the square of the sequence length:
