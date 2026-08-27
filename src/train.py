@@ -1028,93 +1028,30 @@ def prompt_fingerprint(prompt: str) -> str:
     return hashlib.sha256(prompt.encode("utf-8")).hexdigest()
 
 
-def _cache_key_value_pairs(past):
-    """Reads (keys, values) per layer out of a KV cache, across library versions.
-
-    transformers moved this from `.key_cache` / `.value_cache` lists to
-    `.layers[i].keys` / `.layers[i].values` between 4.x and 5.x. This is
-    the only place in the project that reaches inside a library object,
-    and it is guarded by the self-test in score_labels().
-    """
-    layers = getattr(past, "layers", None)
-    if layers is not None:
-        return [(layer.keys, layer.values) for layer in layers]
-    if hasattr(past, "key_cache"):
-        return list(zip(past.key_cache, past.value_cache))
-    raise TypeError(f"unrecognised cache object: {type(past)!r}")
-
-
-def _repeat_cache(past, n: int):
-    """A copy of a batch-1 KV cache, repeated n times along the batch axis.
-
-    Rationale: the prompt is identical for all 27 candidate labels, and it
-    is the expensive part - about 180 tokens against roughly 4 tokens for
-    a label. Scoring the candidates as 27 independent sequences would
-    recompute that prompt 27 times, turning a twenty-minute measurement
-    into a multi-hour one.
-
-    A fresh cache object is built rather than expanding the original in
-    place, because the forward pass that follows appends the candidate
-    tokens to whatever cache it is handed, and mutating the prompt's cache
-    would corrupt the next candidate.
-    """
-    from transformers.cache_utils import DynamicCache
-
-    new = DynamicCache()
-    for layer_index, (keys, values) in enumerate(_cache_key_value_pairs(past)):
-        new.update(keys.expand(n, -1, -1, -1).contiguous(),
-                   values.expand(n, -1, -1, -1).contiguous(), layer_index)
-    return new
-
-
 def _label_token_ids(tokenizer, labels: list[str]) -> list[list[int]]:
     """Each label as the token sequence the model would have to produce."""
     return [tokenizer(label, add_special_tokens=False)["input_ids"] for label in labels]
 
 
-def cache_memory_estimate(model, prompt_tokens: int, n_labels: int = 27) -> dict:
-    """Estimates the GPU memory the 27-way cache copy will require, before requesting it.
-
-    The saving in _repeat_cache() is paid for in memory: the prompt's
-    key-value cache is duplicated once per candidate label. At the
-    zero-shot prompt length this is well under a gigabyte on Qwen3-1.7B,
-    but the estimate is still printed by the notebook before the run
-    rather than discovered as a CUDA out-of-memory error partway through -
-    a longer prompt or a larger model changes the answer.
-
-    One clause worth keeping accurate: the fallback fast=False path fits
-    easily *because* _score_one_prompt() bounds the logits it requests.
-    Without that bound the naive path applies the head at every position
-    of every sequence and, at long prompt lengths, fails inside the
-    self-test - the number this function estimates was never the ceiling
-    that was actually hit in that case.
-    """
-    config = model.config
-    n_layers = config.num_hidden_layers
-    n_kv = getattr(config, "num_key_value_heads", config.num_attention_heads)
-    head_dim = getattr(config, "head_dim", None) or config.hidden_size // config.num_attention_heads
-    bytes_per_element = 2                       # fp16 / bf16
-    per_token = 2 * n_layers * n_kv * head_dim * bytes_per_element
-    return {
-        "prompt_tokens": prompt_tokens,
-        "kv_bytes_per_token": per_token,
-        "cache_gb_per_sequence": round(per_token * prompt_tokens / 1e9, 3),
-        "cache_gb_for_all_labels": round(per_token * prompt_tokens * n_labels / 1e9, 2),
-    }
-
-
 def _score_one_prompt(model, tokenizer, prompt: str, label_ids: list[list[int]],
-                      precision: str, fast: bool) -> np.ndarray:
+                      precision: str) -> np.ndarray:
     """Sum of token log-probabilities for each candidate label. Shape (27, 2).
 
     Column 0 is the sum, column 1 is the token count - the caller turns
     those into whichever of the two declared scores it wants. Both come
     out of the same forward pass, so recording both costs nothing extra.
 
-    Two implementations of the same quantity: `fast` reuses the prompt's
-    key-value cache across the 27 candidates, `naive` scores 27 complete
-    sequences. The naive path is obviously correct and is the reference
-    the self-test compares against.
+    One implementation, deliberately the obvious one: the 27 candidate
+    sequences (prompt + label) are scored in a single batched forward
+    pass. An earlier version carried a second, faster path that computed
+    the prompt's key-value cache once and copied it across the candidates
+    - machinery that reached inside transformers' cache objects, needed a
+    self-test to be trusted, and earned its keep only for the ~900-token
+    few-shot prompt this project has since deleted. At the zero-shot
+    prompt length (~180 tokens) the batched pass costs about the same and
+    depends on no library internals, so when a Colab image update broke
+    the cache-layout assumptions (caught by that self-test, exactly as
+    designed), the fast path was removed rather than repaired.
 
     `model` must be the causal-LM form (build_causal_model). A
     sequence-classification model returns one vector per sequence rather
@@ -1136,59 +1073,30 @@ def _score_one_prompt(model, tokenizer, prompt: str, label_ids: list[list[int]],
     for i, ids in enumerate(label_ids):
         candidates[i, :len(ids)] = torch.tensor(ids, device=device)
 
-    with torch.no_grad(), torch.autocast(device.type, dtype=dtype):
-        if fast:
-            # logits_to_keep=1: the only row of prompt logits this path reads is the
-            # last one, and running the head over all ~900 prompt positions allocates
-            # a few hundred MB to throw them away. The read below is [-1] either way,
-            # so a version that ignores the argument still gets the right row.
-            prompt_out = model(input_ids=prompt_ids, use_cache=True, logits_to_keep=1)
-            prompt_length = prompt_ids.shape[1]
-            first_logits = prompt_out.logits[:, -1, :].float().expand(n_labels, -1)
+    prompt_length = prompt_ids.shape[1]
+    full = torch.cat([prompt_ids.expand(n_labels, -1), candidates], dim=1)
+    mask = torch.ones_like(full)
+    for i, length in enumerate(lengths):
+        mask[i, prompt_length + length:] = 0
 
-            mask = torch.ones((n_labels, prompt_length + width),
-                              dtype=torch.long, device=device)
-            for i, length in enumerate(lengths):
-                mask[i, prompt_length + length:] = 0
-            step_out = model(
-                input_ids=candidates,
-                attention_mask=mask,
-                past_key_values=_repeat_cache(prompt_out.past_key_values, n_labels),
-                use_cache=True,   # a passed cache is ignored by some versions when this
-                                  # is False; the returned cache is thrown away anyway
-                cache_position=torch.arange(prompt_length, prompt_length + width,
-                                            device=device),
-            )
-            # position t of a candidate is predicted by the logits at t-1;
-            # position 0 is predicted by the last position of the prompt.
-            logits = torch.cat([first_logits.unsqueeze(1),
-                                step_out.logits[:, :-1, :].float()], dim=1)
+    with torch.no_grad(), torch.autocast(device.type, dtype=dtype):
+        # logits_to_keep bounds the memory this pass requests. Without it the
+        # head is applied at every position of every sequence: 27 candidates
+        # x hundreds of prompt tokens x a 151,936-token vocabulary in half
+        # precision is gigabytes, requested as ONE contiguous block. Only the
+        # `width` rows that predict candidate tokens are ever read.
+        keep_last = width + 1        # ... of which prompt_length - 1 is the first
+        out = model(input_ids=full, attention_mask=mask, use_cache=False,
+                    logits_to_keep=keep_last)
+        # A transformers version that does not know the argument absorbs it
+        # into **kwargs and returns full-length logits - and then
+        # `[:, :width]` would silently read the START of the prompt and
+        # score nonsense. Slice according to what came back, not according
+        # to what was asked for.
+        if out.logits.shape[1] == keep_last:
+            logits = out.logits[:, :width, :].float()
         else:
-            prompt_length = prompt_ids.shape[1]
-            full = torch.cat([prompt_ids.expand(n_labels, -1), candidates], dim=1)
-            mask = torch.ones_like(full)
-            for i, length in enumerate(lengths):
-                mask[i, prompt_length + length:] = 0
-            # logits_to_keep is not a speed tweak here, it is what keeps this path
-            # cheap regardless of prompt length. Without it the head is applied at
-            # every position of every sequence: 27 candidates x hundreds of prompt
-            # tokens x a 151,936-token vocabulary in half precision is gigabytes,
-            # requested as ONE contiguous block, on top of the model and the 27-way
-            # cache the fast path just built - at long prompt lengths a T4 refuses,
-            # and it refuses inside the self-test. Only the `width` rows that
-            # predict candidate tokens are ever read.
-            keep_last = width + 1        # ... of which prompt_length - 1 is the first
-            out = model(input_ids=full, attention_mask=mask, use_cache=False,
-                        logits_to_keep=keep_last)
-            # A transformers version that does not know the argument absorbs it
-            # into **kwargs and returns full-length logits - and then
-            # `[:, :width]` would silently read the START of the prompt and
-            # score nonsense. Slice according to what came back, not according
-            # to what was asked for.
-            if out.logits.shape[1] == keep_last:
-                logits = out.logits[:, :width, :].float()
-            else:
-                logits = out.logits[:, prompt_length - 1:prompt_length - 1 + width, :].float()
+            logits = out.logits[:, prompt_length - 1:prompt_length - 1 + width, :].float()
 
     logprobs = torch.log_softmax(logits, dim=-1)
     taken = logprobs.gather(2, candidates.unsqueeze(-1)).squeeze(-1)   # (27, width)
@@ -1200,17 +1108,13 @@ def _score_one_prompt(model, tokenizer, prompt: str, label_ids: list[list[int]],
 
 
 def score_labels(model, tokenizer, texts, labels: list[str], precision: str,
-                 fast: bool = True, self_test_rows: int = 3,
                  progress=print) -> dict:
     """Computes the "before" number: classify by scoring all 27 labels, no head involved.
 
-    Runs the fast and the naive implementation against each other on the
-    first few rows before trusting either. The fast path reaches into a
-    library object to reuse a key-value cache, that object's shape has
-    changed between transformers versions, and a wrong answer there would
-    look like a plausible score rather than a crash. Disagreement raises;
-    there is no silent fallback, since a silent fallback would turn a
-    two-and-a-half-hour run into a surprise.
+    One batched forward pass per row, through _score_one_prompt above.
+    There is no second implementation and therefore no self-test: the
+    dual-path version existed to make a fragile cache-reuse optimisation
+    trustworthy, and both the optimisation and its guard left together.
 
     Returns predictions under both declared scoring rules. The headline
     was fixed in LABEL_SCORING before any of this ran.
@@ -1220,32 +1124,12 @@ def score_labels(model, tokenizer, texts, labels: list[str], precision: str,
     label_ids = _label_token_ids(tokenizer, labels)
     texts = list(texts)
 
-    if fast and self_test_rows:
-        for text in texts[:self_test_rows]:
-            prompt = build_prompt(tokenizer, text, labels)
-            quick = _score_one_prompt(model, tokenizer, prompt, label_ids, precision, True)
-            slow = _score_one_prompt(model, tokenizer, prompt, label_ids, precision, False)
-            gap = float(np.abs(quick[:, 0] - slow[:, 0]).max())
-            # Top-1 agreement is the decisive check - that is the quantity the
-            # measurement actually uses. The numeric tolerance is loose on
-            # purpose: half-precision arithmetic does not reassociate the same
-            # way in the two paths, and failing this check over 0.01 of
-            # log-prob would be a false alarm.
-            if gap > 0.5 or quick[:, 0].argmax() != slow[:, 0].argmax():
-                raise RuntimeError(
-                    f"cached and uncached label scoring disagree by {gap:.4f}. The "
-                    "key-value cache layout of this transformers version is not the one "
-                    "_repeat_cache() handles. Re-run with fast=False - it is correct and "
-                    "about 20x slower - and record the fallback in the run log."
-                )
-        progress(f"  self-test passed on {self_test_rows} rows (cached == uncached)")
-
     sums = np.zeros((len(texts), len(labels)))
     counts = np.zeros((len(texts), len(labels)))
     started = time.perf_counter()
     for i, text in enumerate(texts):
         prompt = build_prompt(tokenizer, text, labels)
-        scored = _score_one_prompt(model, tokenizer, prompt, label_ids, precision, fast)
+        scored = _score_one_prompt(model, tokenizer, prompt, label_ids, precision)
         sums[i], counts[i] = scored[:, 0], scored[:, 1]
         if (i + 1) % 200 == 0 or i + 1 == len(texts):
             elapsed = time.perf_counter() - started
