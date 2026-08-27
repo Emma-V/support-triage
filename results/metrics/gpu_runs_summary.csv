@@ -1,7 +1,6 @@
-run,base_model,train_rows,accuracy,f1_macro,runtime_seconds
-run_00_debug_0p6b,Qwen/Qwen3-0.6B,512,0.1,0.0767,44.54
-run_01_zeroshot_1p7b,Qwen/Qwen3-1.7B,0,0.5495,0.5297,1114.41
-run_02_fewshot_1p7b,Qwen/Qwen3-1.7B,0,0.8509,0.8265,4269.77
-run_03_lora_r4,Qwen/Qwen3-1.7B,9893,0.9991,0.9988,2830.89
-run_04_lora_r8,Qwen/Qwen3-1.7B,9893,0.9991,0.9987,2832.69
-run_05_lora_r16,Qwen/Qwen3-1.7B,9893,0.9995,0.9994,2833.91
+run,model,base_model,task_type,label_level,train_rows,eval_rows,trained_on,scored_on,train_sha256,r,lora_alpha,lora_dropout,target_modules,modules_to_save,epochs,best_epoch,selection_metric,learning_rate,batch_size,grad_accum,warmup_ratio,weight_decay,max_length,longest_sequence,precision,gpu_name,split_seed,subsample_seed,train_seed,trainable_params,total_params,trainable_pct,n_rows,n_labels,accuracy,f1_macro,f1_weighted,runtime_seconds,shots,scoring_rule,prompt_sha256,prompt_tokens,decoding
+run_00_debug_0p6b,qwen3+lora+seq_cls,Qwen/Qwen3-0.6B,SEQ_CLS,intent,512,2120,clean/train,clean/val,a297a1261a2623cc1f5e4d64e6d87a52fc8d06f7eff4a72af495d0a516c536bb,8.0,16.0,0.05,"['q_proj', 'v_proj']",['score'],1.0,1.0,f1_macro,0.0002,32.0,1.0,0.06,0.01,32.0,20.0,bf16,NVIDIA L4,42,42.0,42.0,1174528.0,597252096.0,0.1967,2120,27,0.0981,0.0753,0.0795,8.18,,,,,
+run_01_zeroshot_1p7b,qwen3+label_scoring,Qwen/Qwen3-1.7B,label_scoring,intent,0,2120,-,clean/val,,,,,,,,,,,,,,,,,bf16,NVIDIA L4,42,,,,,,2120,27,0.5467,0.5269,0.5213,878.99,0.0,mean_logprob_per_token,70d864af47baf6cb2f71388bccbe048734a31fc0d51e61db3db3d95a5de32e8a,166.0,greedy (argmax over the 27 label scores)
+run_03_lora_r4,qwen3+lora+seq_cls,Qwen/Qwen3-1.7B,SEQ_CLS,intent,9893,2120,clean/train,clean/val,6d674bcb7d8fd254705cf847ebeefae9e3f9e356f385bb3c5b365819de78d177,4.0,8.0,0.05,"['q_proj', 'v_proj']",['score'],3.0,3.0,f1_macro,0.0002,32.0,1.0,0.06,0.01,32.0,24.0,bf16,NVIDIA L4,42,,42.0,858112.0,1721488384.0,0.0498,2120,27,0.9991,0.9988,0.9991,222.16,,,,,
+run_04_lora_r8,qwen3+lora+seq_cls,Qwen/Qwen3-1.7B,SEQ_CLS,intent,9893,2120,clean/train,clean/val,6d674bcb7d8fd254705cf847ebeefae9e3f9e356f385bb3c5b365819de78d177,8.0,16.0,0.05,"['q_proj', 'v_proj']",['score'],3.0,3.0,f1_macro,0.0002,32.0,1.0,0.06,0.01,32.0,24.0,bf16,NVIDIA L4,42,,42.0,1660928.0,1722291200.0,0.0964,2120,27,0.9995,0.9993,0.9995,221.14,,,,,
+run_05_lora_r16,qwen3+lora+seq_cls,Qwen/Qwen3-1.7B,SEQ_CLS,intent,9893,2120,clean/train,clean/val,6d674bcb7d8fd254705cf847ebeefae9e3f9e356f385bb3c5b365819de78d177,16.0,32.0,0.05,"['q_proj', 'v_proj']",['score'],3.0,3.0,f1_macro,0.0002,32.0,1.0,0.06,0.01,32.0,24.0,bf16,NVIDIA L4,42,,42.0,3266560.0,1723896832.0,0.1895,2120,27,0.9986,0.9984,0.9986,222.3,,,,,

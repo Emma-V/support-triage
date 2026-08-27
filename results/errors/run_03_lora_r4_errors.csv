@@ -1,0 +1,3 @@
+row_id,instruction,intent,predicted,confidence,category,flags
+4469,locate bill{{Invoice Number}},check_invoice,track_order,0.6778892278671265,INVOICE,BLZ
+10323,another standard account,create_account,switch_account,0.6406733989715576,ACCOUNT,BKL
