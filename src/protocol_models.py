@@ -41,8 +41,6 @@ that measured the TF-IDF baselines.
 
 from __future__ import annotations
 
-import json
-from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -296,31 +294,6 @@ def save_val_outputs(name: str, logits, rows: pd.DataFrame,
     return save_row_outputs(name, logits, rows, metrics_dir, part="val")
 
 
-# =========================================================================
-# 4. THE JOURNAL
-# =========================================================================
-# One line per event, appended, never rewritten. The value of the file is
-# its order: it is what lets a reader who was not present see that the
-# freeze was recovered before the models were trained, and that both
-# happened before the test set was opened. A journal that can be edited in
-# the middle proves nothing, so entries are appended and timestamped at
-# the moment they happen.
-
-def write_journal_entry(path: Path | str, entry: dict) -> Path:
-    """Append one timestamped event. Returns the path, for printing."""
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    stamped = {"at": datetime.now(timezone.utc).isoformat(timespec="seconds"), **entry}
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(stamped, ensure_ascii=False) + "\n")
-    return path
-
-
-def read_journal(path: Path | str) -> pd.DataFrame:
-    """The journal as a frame, in the order it was written."""
-    path = Path(path)
-    if not path.exists():
-        return pd.DataFrame(columns=["at", "event"])
-    entries = [json.loads(line) for line in
-               path.read_text(encoding="utf-8").splitlines() if line.strip()]
-    return pd.DataFrame(entries)
+# The event journal that used to live here was deliberately removed: git
+# history and the seal already carry the ordering claim it existed to
+# make, and a second record of the same order is ceremony, not evidence.

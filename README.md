@@ -51,12 +51,19 @@ politeness, colloquial register, keyword-only phrasing, deliberate typos.
 The consequence is that many rows are **siblings of one template rather than
 independent examples**. In a plain random split those siblings scatter across train
 and test, and the model is scored on sentences it has effectively already seen.
-Measured on this data: in a naive split, 10.5% of test rows appear verbatim in the
-training set and 52.0% sit at cosine similarity >= 0.90 to a training row.
+Measured on this data: in a random split of the **raw, uncleaned corpus** (the day-1
+diagnostic), 10.5% of test rows appear verbatim in the training set and 52.0% sit at
+cosine similarity >= 0.90 to a training row.
 
 `data/processed/clean/` is the split that groups siblings into families and keeps
 each family on one side of the split. `data/processed/naive/` is the ordinary random
-split, kept as the control group.
+split, kept as the control group. One clarification that prevents a misreading: the
+committed naive split is drawn from the corpus **after** exact de-duplication, so its
+measured verbatim train-test overlap is 0.00% - the 10.5% figure above describes the
+raw-corpus diagnostic, not this file. The committed "naive" protocol is therefore
+deliberately semi-naive: it isolates the near-duplicate *family* effect from the
+exact-duplicate effect, which makes every leakage estimate in this project
+conservative rather than inflated.
 
 ### Every cleaning step, and what it buys
 
@@ -346,7 +353,7 @@ predictions, and a slip to 64 is 4x slower with no error and no warning.
 ### The three baselines are measured before any of it
 
 Majority class and TF-IDF were measured on CPU (above). The third needs a GPU: **Qwen3-1.7B
-with no adapter and no training at all**, zero-shot and with one demonstration per intent.
+with no adapter and no training at all**, zero-shot.
 
 It is not measured through the classification head. That head is initialised at random, so a
 score taken through it would be a score of the random numbers in it — roughly guessing, and
@@ -356,11 +363,8 @@ an arbitrary choice that moves the number. So the measurement is **label scoring
 of the 27 intents, how likely the model finds that label as the continuation of the prompt,
 highest wins. Always a legal label, no mapping rules, and the untrained head is never touched.
 
-Two things are fixed before the run rather than after:
+One thing is fixed before the run rather than after:
 
-- **The demonstrations come from `clean/train` only**, one per intent, drawn at random with a
-  recorded seed. An example taken from `clean/val` puts a validation sentence inside the
-  prompt used to score `clean/val`, and nothing external would show it.
 - **Length-normalised scoring is the headline.** Labels are 1 to about 7 tokens long
   (`review` against `set_up_shipping_address`) and a plain sum of log-probabilities is
   systematically biased towards short ones — a property of the scoring rule, not of the model.
@@ -384,15 +388,25 @@ compared rather than logits, because half-precision arithmetic is not bit-reprod
 two loads and demanding identical floats would fail for a reason unrelated to what is being
 tested.
 
-### What is in git and what is not
+### What is in git and what is not, and how it gets there
 
 Adapters go to Drive, one directory per run; git gets the run's JSON record. An adapter is a
 training output, not code.
 
-The day-2 rule — no per-run JSON beside the summary table, because every field in it was
-already a column — is kept, and its *reason* is what makes the GPU runs an exception. A
-training run carries two things no summary table can hold, the per-step loss curve and the
-per-epoch validation score, and re-creating them costs compute units rather than a second. So
-`results/metrics/run_XX.json` is the archive and `gpu_runs_summary.csv` is a view generated
-from it. Run numbers are never reused, including for runs that failed: a run that disappeared
-is a run that will be run again.
+The rule from the baseline stage — no per-run JSON beside the summary table, because every
+field in it was already a column — is kept, and its *reason* is what makes the GPU runs an
+exception. A training run carries two things no summary table can hold, the per-step loss
+curve and the per-epoch validation score, and re-creating them costs compute units rather
+than a second. So `results/metrics/run_XX.json` is the archive and `gpu_runs_summary.csv` is
+a view generated from it. Run numbers are never reused, including for runs that failed: a
+run that disappeared is a run that will be run again.
+
+How the GPU outputs reach git is worth stating, because it is the one place this project's
+reproducibility story depends on a manual step. **No push credential exists anywhere in this
+project** — the repository is public and is graded from GitHub, so nothing secret may live
+in a Colab runtime, a notebook, or a secret store. A GPU session therefore commits into its
+own disposable clone and mirrors `results/` and `artifacts/` to Drive after every expensive
+step; the restore step on the local machine copies those files into the repository, where
+they are committed and pushed with ordinary local credentials. A result exists, in the sense
+this README uses the word, only once that restore has happened — a file that is only on
+Drive is not yet part of the record.

@@ -286,12 +286,6 @@ def run_training_path(stub: Path, labels: list[str], freeze: dict,
         workspace / "results" / f"{name}_errors.csv", index=False)
     D.write_json(record, metrics_dir / f"{name}.json")
     ok(f"row-level outputs written and read back: {', '.join(p.name for p in paths)}")
-
-    journal = workspace / "results" / "run_journal.jsonl"
-    P.write_journal_entry(journal, {"event": "model_trained", "run": name,
-                                    "macro_f1_val": metrics["f1_macro"]})
-    assert len(P.read_journal(journal)) == 1
-    ok("journal entry written and read back")
     return record
 
 

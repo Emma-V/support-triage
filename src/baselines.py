@@ -5,9 +5,9 @@ A baseline defines the scale against which later results are judged: a
 macro-F1 score is uninformative on its own, but becomes a meaningful claim
 when stated against a floor and a non-neural reference model.
 
-Two baselines are implemented here. The third baseline - zero/few-shot
-scoring with an untrained Qwen3 - requires a GPU and lives outside this
-module.
+Two baselines are implemented here. The third baseline - zero-shot
+label scoring with an untrained Qwen3 - requires a GPU and lives outside
+this module.
 
   1. Majority class. Predicts the most frequent training label regardless
      of input text. Establishes the floor: any model that does not beat it

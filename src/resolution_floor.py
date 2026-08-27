@@ -13,8 +13,8 @@ evaluation set - 2,120 rows over 27 classes - and not of training.
 It is deliberately NOT a measurement of training variance. Estimating
 that would mean training the same configuration several times under
 different seeds, and this project trains under exactly one seed
-(TRAIN_SEED = 42, the same value as SPLIT_SEED and every other seed in
-the repository). So no claim of the form "this difference survives
+(TRAIN_SEED = 42, the same value as SPLIT_SEED and every other seed
+that remains in the repository). So no claim of the form "this difference survives
 retraining" is available here, and none is made. The weaker claim that
 remains is still the one that matters for the sweep: a gap narrower than
 one validation row is not a gap.

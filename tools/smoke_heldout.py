@@ -91,9 +91,9 @@ def check_module_cannot_read() -> None:
     if found:
         raise AssertionError(
             "src/heldout.py can read a split itself:\n  " + "\n  ".join(found) +
-            "\nThe reading belongs in the notebook, in one place, after the journal "
-            "entry that says it is about to happen. A module that can do it quietly "
-            "makes 'opened once' unverifiable.")
+            "\nThe reading belongs in the notebook, in one place, in the section "
+            "that declares the test set is being opened. A module that can do it "
+            "quietly makes 'opened once' unverifiable.")
     ok(f"src/heldout.py has no call that reads a split ({len(FORBIDDEN_NAMES)} names checked)")
 
 

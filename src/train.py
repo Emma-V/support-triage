@@ -13,9 +13,9 @@ Scope of this module:
   because each of the failures they guard against is silent, or raises an
   error that points at the wrong place.
 - The "before" number: scoring the 27 labels with an untrained Qwen3,
-  zero-shot and few-shot. This is a baseline rather than training, but it
-  requires a GPU while src/baselines.py is deliberately torch-free, so it
-  lives here instead.
+  zero-shot. This is a baseline rather than training, but it requires a
+  GPU while src/baselines.py is deliberately torch-free, so it lives here
+  instead.
 
 Run configuration is passed as a parameter rather than written inline
 because the same procedure is run many times with different values in
@@ -130,20 +130,18 @@ MAX_GRAD_NORM = 1.0
 # a decision made while looking at the numbers.
 SELECTION_METRIC = "f1_macro"
 
-# Seeds. One value, 42, everywhere in this project - split, training and
-# prompt construction alike. Nothing is ever run under a second seed, so
-# no result anywhere in the repository is a claim about seed variance.
+# Seeds. Every seed in this project holds the value 42, and nothing is
+# ever run under a second value, so no result anywhere in the repository
+# is a claim about seed variance.
 #
 # They keep separate names regardless, because they decide different
 # things and a reader has to be able to tell which one a record is
 # talking about. SPLIT_SEED (src/data.py) decides which rows are in which
 # split and is frozen for the life of the project. TRAIN_SEED decides
-# weight init, shuffling order and dropout masks. FEWSHOT_SEED decides
-# which sentences are shown inside the few-shot prompt. Collapsing three
+# weight init, shuffling order and dropout masks. Collapsing distinct
 # roles into one name is how a difference in data gets reported as
 # training variance; sharing a value does not make them the same knob.
 TRAIN_SEED = 42
-FEWSHOT_SEED = 42
 
 # The debug run. Small model, small slice, one epoch. Nothing it produces
 # is reported: it exists to verify the plumbing before an hour of GPU
@@ -154,11 +152,6 @@ DEBUG_EPOCHS = 1          # cheap, enough for "did the loss move" to be a real a
 # Where adapters go. Colab's local disk is wiped when the runtime dies, and a
 # run whose output vanished is a run that has to be paid for twice.
 DEFAULT_DRIVE_DIR = Path("/content/drive/MyDrive/support-triage/runs")
-
-# One demonstration per intent, drawn at random from clean/train with a
-# recorded seed. Hand-picking illustrative examples is exactly where
-# information that would not exist at prediction time would enter the prompt.
-FEWSHOT_PER_INTENT = 1
 
 # The instruction text. It is a hyper-parameter even though it does not
 # look like one: reword it and the "before" number moves. It lives in the
@@ -171,10 +164,6 @@ PROMPT_SYSTEM = (
     "Answer with the label and nothing else."
 )
 PROMPT_USER = "Intent labels:\n{label_list}\n\nCustomer message: {text}\n\nIntent label:"
-# The few-shot demonstrations already contain every one of the 27 labels, so
-# the list is not repeated in every user turn - it is stated once, in the
-# system turn, and the per-turn template gets shorter.
-PROMPT_USER_FEWSHOT = "Customer message: {text}\n\nIntent label:"
 
 # Scoring rule for the "before" number, declared before the run. The
 # candidate labels are between 1 and about 7 tokens long ("review" against
@@ -230,10 +219,13 @@ def check_transformers_version() -> dict:
 def gpu_report() -> dict:
     """Blocking check B: which GPU is available, and does it support bf16?
 
-    T4 (Turing) has no bf16 support: requesting it either raises or falls
-    back to something very slow. L4 and A100 do support it, and bf16 is
-    the better choice there because it has the exponent range of fp32 and
-    therefore needs no loss scaling.
+    T4 (Turing) has no native bf16 support - but recent torch versions
+    report `is_bf16_supported()` as True there anyway, via emulation, so a
+    T4 run can legitimately record `precision: bf16`. What matters for the
+    comparisons in this project is that all runs in a table agree, and the
+    freeze check enforces that. L4 and A100 support bf16 natively; it is
+    the better choice where available because it has the exponent range of
+    fp32 and therefore needs no loss scaling.
 
     This is returned rather than only used to pick a dtype because of the
     run log. Two runs on different hardware are not comparable, and
@@ -1007,32 +999,7 @@ def build_causal_model(model_name: str, precision: str, pad_token_id: int):
     return model
 
 
-def build_fewshot_examples(train_frame: pd.DataFrame, labels: list[str],
-                           seed: int = FEWSHOT_SEED,
-                           per_intent: int = FEWSHOT_PER_INTENT) -> list[tuple[str, str]]:
-    """One demonstration per intent, drawn from clean/train with a fixed seed.
-
-    From train only. A demonstration taken from clean/val would put a
-    validation sentence inside the prompt used to score clean/val,
-    inflating the "before" number with no external symptom.
-
-    Random with a recorded seed rather than hand-picked. Choosing the
-    clearest example of each intent by eye is exactly the step that
-    smuggles in knowledge unavailable on a live ticket, and could not be
-    reproduced by anyone else.
-    """
-    rows = []
-    for label in labels:                    # frozen order, so the prompt is stable
-        pool = train_frame[train_frame["intent"] == label]
-        if pool.empty:
-            raise ValueError(f"no training rows for intent {label!r}")
-        picked = pool.sample(n=min(per_intent, len(pool)), random_state=seed)
-        rows.extend((row.instruction, label) for row in picked.itertuples())
-    return rows
-
-
-def build_prompt(tokenizer, text: str, labels: list[str],
-                 examples: list[tuple[str, str]] | None = None) -> str:
+def build_prompt(tokenizer, text: str, labels: list[str]) -> str:
     """The exact string the model sees, as one chat-formatted prompt.
 
     `enable_thinking=False` is not optional for Qwen3. With thinking on,
@@ -1041,16 +1008,10 @@ def build_prompt(tokenizer, text: str, labels: list[str],
     think first.
     """
     label_list = "\n".join(labels)
-    messages = [{"role": "system", "content": PROMPT_SYSTEM if examples is None
-                 else PROMPT_SYSTEM + "\n\nIntent labels:\n" + label_list}]
-    for example_text, example_label in (examples or []):
-        messages.append({"role": "user",
-                         "content": PROMPT_USER_FEWSHOT.format(text=example_text)})
-        messages.append({"role": "assistant", "content": example_label})
-    template = PROMPT_USER_FEWSHOT if examples else PROMPT_USER
-    messages.append({"role": "user",
-                     "content": template.format(label_list=label_list, text=text)})
-
+    messages = [
+        {"role": "system", "content": PROMPT_SYSTEM},
+        {"role": "user", "content": PROMPT_USER.format(label_list=label_list, text=text)},
+    ]
     return tokenizer.apply_chat_template(
         messages, tokenize=False, add_generation_prompt=True, enable_thinking=False,
     )
@@ -1087,10 +1048,10 @@ def _repeat_cache(past, n: int):
     """A copy of a batch-1 KV cache, repeated n times along the batch axis.
 
     Rationale: the prompt is identical for all 27 candidate labels, and it
-    is the expensive part - about 180 tokens zero-shot and about 900
-    few-shot, against roughly 4 tokens for a label. Scoring the candidates
-    as 27 independent sequences would recompute that prompt 27 times,
-    turning a ten-minute measurement into a two-and-a-half-hour one.
+    is the expensive part - about 180 tokens against roughly 4 tokens for
+    a label. Scoring the candidates as 27 independent sequences would
+    recompute that prompt 27 times, turning a twenty-minute measurement
+    into a multi-hour one.
 
     A fresh cache object is built rather than expanding the original in
     place, because the forward pass that follows appends the candidate
@@ -1115,20 +1076,16 @@ def cache_memory_estimate(model, prompt_tokens: int, n_labels: int = 27) -> dict
     """Estimates the GPU memory the 27-way cache copy will require, before requesting it.
 
     The saving in _repeat_cache() is paid for in memory: the prompt's
-    key-value cache is duplicated once per candidate label. For a
-    few-shot prompt of ~1,200 tokens on Qwen3-1.7B that is a few
-    gigabytes, which fits on a T4 next to the model and would not fit
-    next to a larger one.
+    key-value cache is duplicated once per candidate label. At the
+    zero-shot prompt length this is well under a gigabyte on Qwen3-1.7B,
+    but the estimate is still printed by the notebook before the run
+    rather than discovered as a CUDA out-of-memory error partway through -
+    a longer prompt or a larger model changes the answer.
 
-    Intended to be printed by the notebook before the run rather than
-    discovered as a CUDA out-of-memory error partway through. If it does
-    not fit, the fix is fewer demonstrations - not fast=False, which fits
-    easily but takes hours.
-
-    That last clause was false for one configuration and is worth keeping
-    accurate: fast=False fits easily *because* _score_one_prompt() bounds
-    the logits it requests. Without that bound the naive path would want
-    7.5 GB of vocabulary logits at few-shot length and fails inside the
+    One clause worth keeping accurate: the fallback fast=False path fits
+    easily *because* _score_one_prompt() bounds the logits it requests.
+    Without that bound the naive path applies the head at every position
+    of every sequence and, at long prompt lengths, fails inside the
     self-test - the number this function estimates was never the ceiling
     that was actually hit in that case.
     """
@@ -1212,14 +1169,14 @@ def _score_one_prompt(model, tokenizer, prompt: str, label_ids: list[list[int]],
             mask = torch.ones_like(full)
             for i, length in enumerate(lengths):
                 mask[i, prompt_length + length:] = 0
-            # logits_to_keep is not a speed tweak here, it is what makes this path
-            # runnable at all. Without it the head is applied at every position of
-            # every sequence: 27 candidates x ~900 few-shot tokens x a 151,936-token
-            # vocabulary in half precision is 7.5 GB, requested as ONE contiguous
-            # block, on top of the model and the 27-way cache the fast path just
-            # built. A T4 refuses, and it refuses inside the self-test - the check
-            # that exists to make this path trustworthy is the thing that fails.
-            # Only the `width` rows that predict candidate tokens are ever read.
+            # logits_to_keep is not a speed tweak here, it is what keeps this path
+            # cheap regardless of prompt length. Without it the head is applied at
+            # every position of every sequence: 27 candidates x hundreds of prompt
+            # tokens x a 151,936-token vocabulary in half precision is gigabytes,
+            # requested as ONE contiguous block, on top of the model and the 27-way
+            # cache the fast path just built - at long prompt lengths a T4 refuses,
+            # and it refuses inside the self-test. Only the `width` rows that
+            # predict candidate tokens are ever read.
             keep_last = width + 1        # ... of which prompt_length - 1 is the first
             out = model(input_ids=full, attention_mask=mask, use_cache=False,
                         logits_to_keep=keep_last)
@@ -1243,7 +1200,6 @@ def _score_one_prompt(model, tokenizer, prompt: str, label_ids: list[list[int]],
 
 
 def score_labels(model, tokenizer, texts, labels: list[str], precision: str,
-                 examples: list[tuple[str, str]] | None = None,
                  fast: bool = True, self_test_rows: int = 3,
                  progress=print) -> dict:
     """Computes the "before" number: classify by scoring all 27 labels, no head involved.
@@ -1266,7 +1222,7 @@ def score_labels(model, tokenizer, texts, labels: list[str], precision: str,
 
     if fast and self_test_rows:
         for text in texts[:self_test_rows]:
-            prompt = build_prompt(tokenizer, text, labels, examples)
+            prompt = build_prompt(tokenizer, text, labels)
             quick = _score_one_prompt(model, tokenizer, prompt, label_ids, precision, True)
             slow = _score_one_prompt(model, tokenizer, prompt, label_ids, precision, False)
             gap = float(np.abs(quick[:, 0] - slow[:, 0]).max())
@@ -1288,7 +1244,7 @@ def score_labels(model, tokenizer, texts, labels: list[str], precision: str,
     counts = np.zeros((len(texts), len(labels)))
     started = time.perf_counter()
     for i, text in enumerate(texts):
-        prompt = build_prompt(tokenizer, text, labels, examples)
+        prompt = build_prompt(tokenizer, text, labels)
         scored = _score_one_prompt(model, tokenizer, prompt, label_ids, precision, fast)
         sums[i], counts[i] = scored[:, 0], scored[:, 1]
         if (i + 1) % 200 == 0 or i + 1 == len(texts):
@@ -1297,7 +1253,7 @@ def score_labels(model, tokenizer, texts, labels: list[str], precision: str,
                      f"~{elapsed / (i + 1) * (len(texts) - i - 1):.0f}s left")
 
     normalised = sums / counts
-    example_prompt = build_prompt(tokenizer, texts[0], labels, examples)
+    example_prompt = build_prompt(tokenizer, texts[0], labels)
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
@@ -1324,10 +1280,9 @@ def score_labels(model, tokenizer, texts, labels: list[str], precision: str,
 
 
 def label_scoring_record(name: str, scored: dict, y_true, labels: list[str],
-                         model_name: str, hardware: dict, shots: int,
-                         fewshot_seed: int | None, notes: str = "",
+                         model_name: str, hardware: dict, notes: str = "",
                          scored_on: str = "clean/val") -> dict:
-    """Builds one run record for a zero-shot or few-shot measurement.
+    """Builds one run record for a zero-shot label-scoring measurement.
 
     Built here rather than in the notebook so the "before" runs and the
     sweep runs land in the summary table with the same column names. A
@@ -1363,9 +1318,7 @@ def label_scoring_record(name: str, scored: dict, y_true, labels: list[str],
             "eval_rows": len(headline),
             "trained_on": "-",
             "scored_on": scored_on,
-            "shots": shots,
-            "fewshot_seed": fewshot_seed,
-            "fewshot_source": "clean/train" if shots else "-",
+            "shots": 0,
             "scoring_rule": scored["scoring_rule"],
             "prompt_sha256": scored["prompt_sha256"],
             "prompt_tokens": scored["prompt_tokens"],

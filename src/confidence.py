@@ -1,12 +1,11 @@
 """
 Confidence scores, and what they are worth as evidence.
 
-A macro-F1 of 0.9994 identifies which predictions were right. It says
-nothing about the number printed beside each one, and three questions hang
-on that number: whether the confidence is calibrated, whether a `top3` list
-is worth returning when the model hesitates, and at what score a ticket
-should stop being answered automatically and be routed to a human instead.
-This module measures all three.
+A macro-F1 of 0.99 identifies which predictions were right. It says
+nothing about the number printed beside each one, and two questions hang
+on that number: whether a `top3` list is worth returning when the model
+hesitates, and at what score a ticket should stop being answered
+automatically and be routed to a human instead. This module measures both.
 
 Everything here runs on a saved logit matrix and never touches a GPU. That
 is a deliberate consequence of losing an earlier run's predictions when a
@@ -15,11 +14,10 @@ about those predictions then required paying for the model again. A
 committed (n_rows, n_labels) array of logits is 230 KB and answers every
 question below indefinitely, on a laptop.
 
-Logits are saved rather than probabilities for one specific reason.
-Temperature scaling divides the logits before the softmax, so it cannot be
-done from probabilities without taking their log - and at this model's
-confidence level a float32 probability underflows to exactly 0.0, whose log
-is -inf. Saving the pre-softmax layer keeps every later question answerable.
+Logits are saved rather than probabilities because the argmax and the
+softmax both come from them but not the other way round: at this model's
+confidence level a float32 probability underflows to exactly 0.0, and any
+later question that needs the pre-softmax layer becomes unanswerable.
 
 WHAT CONFIDENCE IS NOT. A high value here means "of the 27 intents, this
 one is most likely", not "this ticket is one of the 27". A message about
@@ -34,11 +32,6 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
-
-# Bins the calibration table uses unless told otherwise. Ten equal-width
-# bins on [0, 1] is the convention used in the ECE literature, adopted here
-# so the number is comparable to values reported elsewhere.
-N_CALIBRATION_BINS = 10
 
 # Thresholds the coverage-accuracy curve is swept over. Dense near 1.0
 # because a fine-tuned model puts most of its mass there; a curve sampled
@@ -187,114 +180,8 @@ def coverage_accuracy_curve(logits: np.ndarray, y_true, labels: list[str],
     return pd.DataFrame(rows)
 
 
-def calibration_table(logits: np.ndarray, y_true, labels: list[str],
-                      n_bins: int = N_CALIBRATION_BINS) -> pd.DataFrame:
-    """Bins tickets by confidence and compares each bin's claim to its outcome.
-
-    A calibrated model that reports 0.9 is correct about 90% of the time it
-    says so. Accuracy and calibration are distinct properties, and a model
-    can have one without the other - relevant here because every routing
-    threshold is read off the confidence number, so a number that overstates
-    itself sends tickets to customers that should have gone to a person.
-
-    Empty bins are dropped rather than reported as zero: a bin nothing
-    landed in has no defined accuracy, and reporting 0.0 there would read as
-    a failure that did not occur.
-    """
-    frame = row_frame(logits, y_true, labels)
-    edges = np.linspace(0.0, 1.0, n_bins + 1)
-    # right=True so the top bin is closed and a confidence of exactly 1.0
-    # lands inside it rather than falling outside every bin.
-    which = np.clip(np.digitize(frame["confidence"], edges[1:-1], right=True),
-                    0, n_bins - 1)
-
-    rows = []
-    for b in range(n_bins):
-        mask = which == b
-        if not mask.any():
-            continue
-        confidence = float(frame.loc[mask, "confidence"].mean())
-        accuracy = float(frame.loc[mask, "correct"].mean())
-        rows.append({
-            "bin": f"({edges[b]:.2f}, {edges[b + 1]:.2f}]",
-            "n": int(mask.sum()),
-            "mean_confidence": confidence,
-            "accuracy": accuracy,
-            "gap": confidence - accuracy,   # positive = overconfident
-        })
-    return pd.DataFrame(rows)
-
-
-def expected_calibration_error(logits: np.ndarray, y_true, labels: list[str],
-                               n_bins: int = N_CALIBRATION_BINS) -> dict:
-    """Computes ECE, MCE, and the signed average gap.
-
-    ECE averages |confidence - accuracy| over the bins, weighted by bin
-    size. It is the number most commonly quoted, but on its own does not
-    say which direction the model is wrong in. `signed_gap` does: positive
-    means the model claims more than it delivers, negative means it is
-    needlessly modest, and only the former is a risk for routing decisions.
-    """
-    table = calibration_table(logits, y_true, labels, n_bins)
-    if table.empty:
-        return {"ece": float("nan"), "mce": float("nan"),
-                "signed_gap": float("nan"), "n_bins_used": 0}
-    weight = table["n"] / table["n"].sum()
-    return {
-        "ece": float((weight * table["gap"].abs()).sum()),
-        "mce": float(table["gap"].abs().max()),
-        "signed_gap": float((weight * table["gap"]).sum()),
-        "n_bins_used": int(len(table)),
-    }
-
-
-def fit_temperature(logits: np.ndarray, y_true, labels: list[str],
-                    bounds: tuple[float, float] = (0.05, 20.0)) -> dict:
-    """Fits a single temperature parameter by minimising negative log-likelihood.
-
-    Temperature scaling divides every logit by a single positive number
-    before the softmax. T > 1 flattens the distribution and reduces
-    confidence; T < 1 sharpens it. Because it is a monotone transform
-    applied identically to all 27 logits, it cannot change which label is
-    the argmax - accuracy, macro-F1, and every confusion are bit-identical
-    afterwards. Only the confidence values move.
-
-    That property is what makes it safe to fit here: it is fitted on
-    clean/val while the test set remains sealed, making it part of the
-    model rather than part of the evaluation. Fitting it after seeing the
-    test set would be a leak with no way to undo afterwards.
-
-    Fitted on NLL rather than directly on ECE because NLL is smooth and
-    convex in 1/T, so the optimiser converges to the same answer every
-    time; ECE is a step function of the bin edges, which an optimiser can
-    chase as noise.
-    """
-    from scipy.optimize import minimize_scalar
-
-    logits = np.asarray(logits, dtype=np.float64)
-    index = {label: i for i, label in enumerate(labels)}
-    truth = np.array([index[t] for t in y_true])
-    rows = np.arange(len(truth))
-
-    def nll(temperature: float) -> float:
-        scaled = logits / temperature
-        scaled = scaled - scaled.max(axis=1, keepdims=True)
-        log_norm = np.log(np.exp(scaled).sum(axis=1))
-        return float(-(scaled[rows, truth] - log_norm).mean())
-
-    result = minimize_scalar(nll, bounds=bounds, method="bounded")
-    temperature = float(result.x)
-
-    before = expected_calibration_error(logits, y_true, labels)
-    after = expected_calibration_error(logits / temperature, y_true, labels)
-    return {
-        "temperature": temperature,
-        "nll_before": nll(1.0),
-        "nll_after": float(result.fun),
-        "ece_before": before["ece"],
-        "ece_after": after["ece"],
-        "signed_gap_before": before["signed_gap"],
-        "signed_gap_after": after["signed_gap"],
-        "direction": ("overconfident, softened" if temperature > 1
-                      else "underconfident, sharpened"),
-    }
+# Calibration analysis (binned calibration table, ECE/MCE, temperature
+# scaling) was deliberately removed from this project: it is
+# production-calibration work with no consumer in a course-scoped triage
+# classifier, and every threshold question the project does ask is
+# answered by coverage_accuracy_curve above.
