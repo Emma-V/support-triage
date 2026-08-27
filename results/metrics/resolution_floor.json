@@ -1,0 +1,32 @@
+{
+  "granularity": {
+    "base_f1_macro": 0.9993067098552331,
+    "n_probed": 200,
+    "mean_drop_per_row": 0.00047700075388019627,
+    "min_drop": 0.00030613826190617477,
+    "max_drop": 0.0009533050746470817
+  },
+  "floor": {
+    "floor": 0.00047700075388019627,
+    "basis": "one_validation_row",
+    "measured_on": "200 single-row flips",
+    "means": "the smallest difference macro-F1 can express on this validation set; differences below it are not differences",
+    "limit": "this is metric resolution, not training variance - the project trains under one seed, so run-to-run spread was never measured and the true floor can only be larger"
+  },
+  "decision": {
+    "rule": "gap across r vs the resolution floor: gap < floor -> take the smallest r; gap > floor -> take the highest-scoring r",
+    "registered": "written before any floor existed",
+    "gap": 0.0009000000000000119,
+    "floor": 0.00047700075388019627,
+    "gap_in_row_units": 1.886789470831856,
+    "distinguishable": true,
+    "marginal": true,
+    "margin_note": "MARGINAL: the gap clears the floor by only 1.9x, and the floor is metric resolution rather than measured training variance, which can only be larger. The rule's second branch is triggered, but a difference this close to the smallest expressible one should be reported as suggestive and not as an established improvement.",
+    "branch_taken": 2,
+    "chosen_r": 8,
+    "reason": "the gap across r (0.0009) is larger than the resolution floor (0.0005), so the difference is at least expressible by the metric: r=8 leads by 1.9 validation rows' worth."
+  },
+  "measured_at_r": 8,
+  "seed": 42,
+  "note": "metric resolution, not training variance - see F2/F3 above"
+}
