@@ -3,11 +3,11 @@ majority_clean_intent,majority_class,clean,intent,9893,2120,place_order,42,,,212
 majority_clean_category,majority_class,clean,category,9893,2120,ACCOUNT,42,,,2120,11,0.2528,0.0367,0.102,0.0,,,,,,,,
 majority_naive_intent,majority_class,naive,intent,17187,3683,newsletter_subscription,42,,,3683,27,0.0407,0.0029,0.0032,0.0,,,,,,,,
 majority_naive_category,majority_class,naive,category,17187,3683,ACCOUNT,42,,,3683,11,0.2207,0.0329,0.0798,0.0,,,,,,,,
-tfidf_naive_full,tfidf+logreg,,intent,17187,3683,,42,,,3683,27,0.9886,0.9881,0.9886,2.84,word,"[1, 2]",2.0,True,4628.0,,2000.0,none
-tfidf_naive_sub,tfidf+logreg,,intent,9893,3683,,42,42.0,,3683,27,0.9881,0.9874,0.988,1.6,word,"[1, 2]",2.0,True,3621.0,,2000.0,none
-tfidf_clean,tfidf+logreg,,intent,9893,2120,,42,,,2120,27,0.9835,0.9787,0.9832,1.9,word,"[1, 2]",2.0,True,4277.0,,2000.0,none
-tfidf_naive_sub_on_cleanval,tfidf+logreg,,intent,9893,2120,,42,42.0,,2120,27,0.9863,0.9827,0.9862,1.88,word,"[1, 2]",2.0,True,3621.0,,2000.0,none
-tfidf_clean_balanced,tfidf+logreg,,intent,9893,2120,,42,,,2120,27,0.9873,0.9842,0.9872,2.0,word,"[1, 2]",2.0,True,4277.0,balanced,2000.0,none
-tfidf_clean_ent,tfidf+logreg,,intent,9893,2120,,42,,,2120,27,0.9849,0.9805,0.9848,1.75,word,"[1, 2]",2.0,True,4256.0,,2000.0,placeholders-><ENT>
-tfidf_clean_charwb,tfidf+logreg,,intent,9893,2120,,42,,,2120,27,0.9948,0.9928,0.9948,4.07,char_wb,"[3, 5]",2.0,True,8527.0,,2000.0,none
-tfidf_uncollapsed_on_cleanval,tfidf+logreg,,intent,17031,2120,,42,,,2120,27,0.9858,0.9818,0.9856,1.84,word,"[1, 2]",2.0,True,4608.0,,2000.0,none
+tfidf_naive_full,tfidf+logreg,,intent,17187,3683,,42,,,3683,27,0.9886,0.9881,0.9886,4.02,word,"[1, 2]",2.0,True,4628.0,,2000.0,none
+tfidf_naive_sub,tfidf+logreg,,intent,9893,3683,,42,42.0,,3683,27,0.9881,0.9874,0.988,2.35,word,"[1, 2]",2.0,True,3621.0,,2000.0,none
+tfidf_clean,tfidf+logreg,,intent,9893,2120,,42,,,2120,27,0.9835,0.9787,0.9832,3.05,word,"[1, 2]",2.0,True,4277.0,,2000.0,none
+tfidf_naive_sub_on_cleanval,tfidf+logreg,,intent,9893,2120,,42,42.0,,2120,27,0.9863,0.9827,0.9862,2.44,word,"[1, 2]",2.0,True,3621.0,,2000.0,none
+tfidf_clean_balanced,tfidf+logreg,,intent,9893,2120,,42,,,2120,27,0.9873,0.9842,0.9872,2.57,word,"[1, 2]",2.0,True,4277.0,balanced,2000.0,none
+tfidf_clean_ent,tfidf+logreg,,intent,9893,2120,,42,,,2120,27,0.9849,0.9805,0.9848,2.34,word,"[1, 2]",2.0,True,4256.0,,2000.0,placeholders-><ENT>
+tfidf_clean_charwb,tfidf+logreg,,intent,9893,2120,,42,,,2120,27,0.9948,0.9928,0.9948,6.07,char_wb,"[3, 5]",2.0,True,8527.0,,2000.0,none
+tfidf_uncollapsed_on_cleanval,tfidf+logreg,,intent,17031,2120,,42,,,2120,27,0.9858,0.9818,0.9856,4.36,word,"[1, 2]",2.0,True,4608.0,,2000.0,none

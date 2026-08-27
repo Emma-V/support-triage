@@ -1,0 +1,2 @@
+subsample_seed,rows drawn,clean/val rows drawn (%),macro-F1 on naive/val,macro-F1 on clean/val
+42,9893,39.91,0.9874,0.9827
