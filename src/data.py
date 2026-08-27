@@ -126,8 +126,13 @@ VAL_SHARE_OF_HOLDOUT = 0.50
 # candidate is measured - take the loosest threshold, i.e. the one that
 # retains the most training data, at which the resulting split is still
 # clean - applied to a scan over {0.80, 0.85, 0.90, 0.91, 0.92, 0.95}, and
-# the notebook asserts that it lands on this constant. Changing the rule or
-# the scan is what would need to update this value.
+# the notebook asserts that it lands on this constant.
+# "Still clean" is measured on the validation part only. This threshold
+# decides which rows end up in the test set, so selecting it against a
+# test-derived number would be a preprocessing decision informed by the set
+# it shapes; validation is the other 15% of the same split and answers the
+# same question. Changing the rule or the scan is what would need to update
+# this value.
 NEAR_DUP_THRESHOLD = 0.90
 
 # One vector space, defined once, used for three purposes: clustering
@@ -551,25 +556,38 @@ def near_duplicate_groups(X: csr_matrix, intents: pd.Series | np.ndarray,
 
 
 def threshold_scan(X: csr_matrix, intents: pd.Series | np.ndarray,
-                   thresholds=(0.80, 0.85, 0.90, 0.91, 0.92, 0.95)) -> pd.DataFrame:
-    """Reports how many families survive at each candidate threshold.
+                   thresholds=(0.80, 0.85, 0.90, 0.91, 0.92, 0.95),
+                   ) -> tuple[pd.DataFrame, dict[float, np.ndarray]]:
+    """How many families survive at each candidate threshold - and the families.
 
     One of two tables the selection rule in notebooks/01_data.ipynb is
     applied to: this one prices each candidate in data retained, while the
     leakage measurement beside it prices the same candidates in leakage
-    left behind. NEAR_DUP_THRESHOLD is whatever the rule returns from the
-    pair.
+    left behind - measured on validation, so that no test-derived number
+    takes part in choosing the threshold. NEAR_DUP_THRESHOLD is whatever
+    the rule returns from the pair.
 
     The candidates bracket the chosen threshold on both sides, with 0.91
     and 0.92 included so that "why not just above it?" is answered by a
     measured row rather than an assertion. A flat curve indicates the
     choice barely matters; a steep one indicates a real sensitivity, which
     is a finding in its own right rather than a problem.
+
+    Returns the table and {threshold: family ids}, because the second
+    table is measured on the very same families and the frozen split is
+    built from one of these arrays. near_duplicate_groups is the most
+    expensive thing this project runs on CPU and it is deterministic, so
+    clustering each candidate a second time would spend the notebook's
+    largest cost to rebuild an array it already holds. Handing the
+    assignments back is also what keeps the candidate list in one place:
+    every consumer iterates this dict instead of restating the numbers.
     """
     rows = []
+    groups_by_threshold: dict[float, np.ndarray] = {}
     n = X.shape[0]
     for t in thresholds:
         g = near_duplicate_groups(X, intents, threshold=t)
+        groups_by_threshold[t] = g
         n_groups = len(np.unique(g))
         rows.append({
             "threshold": t,
@@ -577,7 +595,7 @@ def threshold_scan(X: csr_matrix, intents: pd.Series | np.ndarray,
             "retained_pct": round(100 * n_groups / n, 1),
             "mean_family_size": round(n / n_groups, 2),
         })
-    return pd.DataFrame(rows)
+    return pd.DataFrame(rows), groups_by_threshold
 
 
 def pick_representatives(df: pd.DataFrame, group_column: str = "dup_group",
@@ -804,11 +822,14 @@ def build_manifest(raw_path: Path | str, counts: dict, splits: dict[str, dict[st
                    full_corpus: pd.DataFrame | None = None) -> dict:
     """The identity card of the split: small, committed to git, and load-bearing.
 
-    The split CSVs themselves are gitignored and rebuilt from the seed.
-    This file is the proof that a rebuild produces the same result.
-    Without it, an upstream dataset update or a scikit-learn version bump
-    could move the split unnoticed; with it, the bootstrap assertion fires
-    immediately.
+    The six CSVs are committed beside it, and this file is what any copy of
+    them is checked against: at the top of every notebook that reads the
+    split, and - the part that is easy to miss - inside 01_data.ipynb,
+    before it overwrites them. That second check is what makes "a rebuild
+    produces the same split" a verified statement rather than a claim. The
+    notebook that builds the artifact is the one place where re-reading the
+    files it has just written proves nothing, because a drifted split gets
+    written together with a manifest that matches it.
 
     When the full-corpus registry is passed, its fingerprint is included
     too: the family-to-side assignment is as much a part of the frozen
@@ -844,19 +865,36 @@ def build_manifest(raw_path: Path | str, counts: dict, splits: dict[str, dict[st
     return manifest
 
 
-def verify_against_manifest(manifest: dict, splits: dict[str, dict[str, pd.DataFrame]],
+def verify_against_manifest(manifest: dict, splits: dict[str, dict[str, pd.DataFrame]] | None = None,
                             full_corpus: pd.DataFrame | None = None) -> None:
-    """Re-hashes the splits on disk and compares to the manifest, raising on mismatch.
+    """Re-hashes the frames it is given and compares to the manifest, raising on mismatch.
 
-    This assertion is what makes the reproducibility claim self-verifying.
-    It runs at the top of every notebook, the only place it is useful: a
-    check that runs after the numbers are produced is decoration.
+    This assertion is what makes the reproducibility claim self-verifying,
+    and it is called from two kinds of place, catching two different
+    failures:
 
-    `full_corpus` is optional so that a notebook reading only the six split
-    CSVs can still verify them without rebuilding the registry.
+    - at the top of every notebook that reads the split, before any number
+      is produced - a check that runs afterwards is decoration;
+    - inside 01_data.ipynb, on the frames just rebuilt and about to be
+      written, against the manifest already committed to git. That is the
+      only guard against the producing notebook quietly building a
+      different split - a scikit-learn upgrade that moves
+      train_test_split, an upstream row that changed - and writing a
+      manifest that agrees with it.
+
+    Both `splits` and `full_corpus` are optional, so each caller checks
+    what it actually holds: a notebook reading only the six CSVs verifies
+    them without rebuilding the registry, and 01_data.ipynb checks the
+    registry on its own at the point where it is built, before it is
+    written. Passing neither would verify nothing while reporting success,
+    so that raises instead.
     """
+    if splits is None and full_corpus is None:
+        raise ValueError(
+            "verify_against_manifest() was given nothing to verify. Pass splits, "
+            "full_corpus, or both - verifying nothing must not look like passing.")
     problems = []
-    for name, parts in splits.items():
+    for name, parts in (splits or {}).items():
         for part, frame in parts.items():
             expected = manifest["splits"][name][part]
             actual = sha256_of_split(frame)
@@ -1397,15 +1435,22 @@ def whitespace_impact(df_raw: pd.DataFrame) -> dict:
     removes 81 leaking pairs, a number this function exists to compute
     rather than assert in a comment.
     """
-    normalised = drop_empty_rows(normalise_whitespace(df_raw))
-    changed = int((df_raw["instruction"].astype(str)
-                   != normalised["instruction"].reindex(df_raw.index)).sum())
+    # The count of rewritten texts is taken BEFORE the empty rows are dropped,
+    # and the order is load-bearing. Comparing against the shorter frame means
+    # reindexing it back onto df_raw's index, which fills every dropped row
+    # with NaN, and NaN != anything is True - so each row removed for being
+    # empty would also be reported as a text that normalisation rewrote. This
+    # dataset drops none, so both orders return 551 here, which is exactly how
+    # the wrong one survives unnoticed until the day a row is empty.
+    normalised = normalise_whitespace(df_raw)
+    changed = int((df_raw["instruction"].astype(str) != normalised["instruction"]).sum())
+    kept = drop_empty_rows(normalised)
     without = len(df_raw) - len(df_raw.drop_duplicates(subset=["instruction", "intent"]))
-    with_normalisation = len(normalised) - len(drop_exact_duplicates(normalised))
+    with_normalisation = len(kept) - len(drop_exact_duplicates(kept))
     return {
         "rows_in": len(df_raw),
         "texts_changed": changed,
-        "empty_rows_dropped": len(df_raw) - len(normalised),
+        "empty_rows_dropped": len(normalised) - len(kept),
         "exact_duplicates_found_without_normalisation": int(without),
         "exact_duplicates_found_with_normalisation": int(with_normalisation),
         "extra_pairs_merged": int(with_normalisation - without),
