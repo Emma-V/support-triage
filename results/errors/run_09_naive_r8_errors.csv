@@ -1,0 +1,9 @@
+row_id,instruction,intent,predicted,confidence,category,flags
+25283,where do I check my last purchase estimated time of arrival?,track_order,delivery_period,0.9926322951907713,ORDER,BIL
+6860,am I entitled to a reimbursement?,check_refund_policy,get_refund,0.9280941353661961,REFUND,BIL
+21728,help creating account,registration_problems,create_account,0.8075975981284632,ACCOUNT,BK
+10323,another standard account,create_account,switch_account,0.7181244131138816,ACCOUNT,BKL
+15905,is it possible to request rteimbursements,get_refund,check_refund_policy,0.5306288330129653,REFUND,BILMQZ
+25938,refund status,track_refund,get_refund,0.4656260088907875,REFUND,BK
+15925,when can I expect a refund,get_refund,track_refund,0.35539624348483173,REFUND,B
+1239,i nmeed assistance removing some products,change_order,place_order,0.3538928910071838,ORDER,BLMQZ

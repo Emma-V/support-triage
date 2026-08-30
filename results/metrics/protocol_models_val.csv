@@ -1,0 +1,3 @@
+run,trained on,train rows,selected on,best epoch,macro-F1 (val),accuracy (val),train sha256
+run_09_naive_r8,naive/train,"17,187",naive/val,3,0.9978,0.9978,0354eee23ff3b996
+run_10_naive_sub_r8,naive_sub/train,"9,893",naive/val,2,0.9978,0.9978,d1a12470f92549af
