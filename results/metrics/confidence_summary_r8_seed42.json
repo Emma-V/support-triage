@@ -1,0 +1,13 @@
+{
+  "run_id": "r8_seed42",
+  "r": 8,
+  "train_seed": 42,
+  "scored_on": "clean/val",
+  "n_rows": 2120,
+  "accuracy": 0.9995283018867924,
+  "mean_confidence": 0.9987160685779368,
+  "median_confidence": 0.999987349703056,
+  "rows_below_0.99": 30,
+  "top1_accuracy": 0.9995283018867924,
+  "top3_accuracy": 1.0
+}

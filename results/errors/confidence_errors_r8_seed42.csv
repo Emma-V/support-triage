@@ -1,0 +1,2 @@
+row_id,instruction,true,predicted,correct,confidence,margin,entropy,top1,top2,top3,p2,p3,top3_hit
+4469,locate bill{{Invoice Number}},check_invoice,track_order,False,0.86583252001049,0.7330528026110205,0.4048294360887199,track_order,check_invoice,track_refund,0.13277971739946956,0.0003970041658409632,True
