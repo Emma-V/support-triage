@@ -450,8 +450,10 @@ def trainable_parameter_counts(model) -> dict:
 
     This is the number that turns "LoRA was used" from a statement into an
     argument: how much capacity was added, at what cost. It belongs in the
-    report table next to the runtime, and together they make r=16 beating
-    r=4 by a narrow margin an operational finding rather than a footnote.
+    report table next to the runtime, and together they are what makes the
+    r-sweep an operational finding rather than a footnote: the spread across
+    r is 0.0009 macro-F1, and the run that tops it, r=8, trains half the
+    parameters of the r=16 that came last.
     """
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total = sum(p.numel() for p in model.parameters())
