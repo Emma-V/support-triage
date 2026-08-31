@@ -1,0 +1,7 @@
+row_id,instruction,intent,predicted,confidence,category,flags
+21728,help creating account,registration_problems,create_account,0.9999972890055179,ACCOUNT,BK
+21679,assistance opening user account,registration_problems,create_account,0.9999599126881181,ACCOUNT,BKL
+25945,track refund,track_refund,get_refund,0.9884411726088028,REFUND,BK
+3390,I have to see the withdrawal efe,check_cancellation_fee,track_refund,0.9533334489914701,CANCEL,BLZ
+4463,ser the bill #37777,check_invoice,get_invoice,0.8734487314789262,INVOICE,BLZ
+22443,review,review,create_account,0.585480058676079,FEEDBACK,BK

@@ -1,0 +1,5 @@
+pair,train rows,test rows,exact overlap %
+clean/train -> clean/test,9893,2120,0.0
+naive/train -> naive/test,17187,3684,0.0
+naive_sub/train -> naive/test,9893,3684,0.0
+naive_sub/train -> clean/test  [the control],9893,2120,39.53

@@ -1,0 +1,8 @@
+row,trained on,train rows,measured on,accuracy,macro-F1,role
+majority class,clean/train,9893,clean/test,0.0575,0.004,floor
+TF-IDF + LogReg,clean/train,9893,clean/test,0.9863,0.9847,baseline
+zero-shot (no training),-,0,clean/test,0.5575,0.537,before
+fine-tuned - clean,clean/train,9893,clean/test,0.9976,0.9971,headline
+fine-tuned - naive,naive/train,17187,naive/test,0.9984,0.9982,protocol
+"fine-tuned - naive, size-matched",naive_sub/train,9893,naive/test,0.9973,0.9971,protocol
+"fine-tuned - naive, size-matched",naive_sub/train,9893,clean/test,0.9972,0.9971,control

@@ -1,0 +1,9 @@
+{
+  "metric": "f1_macro",
+  "val": 0.9993,
+  "test": 0.9971,
+  "gap": 0.0022,
+  "floor": 0.000477,
+  "in_floor_units": 4.6,
+  "reading": "the test score is BELOW the validation score by more than the resolution floor - some of the validation number was selection, and the size of the drop is the size of it"
+}

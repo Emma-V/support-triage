@@ -1,0 +1,6 @@
+row_id,instruction,intent,predicted,confidence,category,flags
+21679,assistance opening user account,registration_problems,create_account,0.9999426194521731,ACCOUNT,BKL
+21728,help creating account,registration_problems,create_account,0.9958785550782157,ACCOUNT,BK
+25945,track refund,track_refund,track_order,0.755867074219787,REFUND,BK
+1758,correct order370795561790,change_order,cancel_order,0.4506117923264702,ORDER,BKLZ
+22443,review,review,create_account,0.41004213548963453,FEEDBACK,BK

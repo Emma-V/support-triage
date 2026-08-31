@@ -1,0 +1,30 @@
+row_id,instruction,intent,predicted,confidence,category,flags
+15135,help geting my bills from {{Person Name}},get_invoice,check_invoice,0.723070837944002,INVOICE,BLMZ
+25503,i have got to locte order {{Order Number}},track_order,change_order,0.7040729144917682,ORDER,BLQZ
+15663,i need help to getthe invoices from {{Person Name}},get_invoice,check_invoice,0.6951867487911725,INVOICE,BMQZ
+15225,i need help gettng bill #00108,get_invoice,check_invoice,0.6712530280349935,INVOICE,BLQZ
+24908,show me estimated time of arrival of order {{Order Number}},track_order,change_order,0.6132046009381926,ORDER,BKL
+21728,help creating account,registration_problems,create_account,0.6017592871191838,ACCOUNT,BK
+15186,i need assistance to egt the invoice from {{Person Name}},get_invoice,check_invoice,0.5847240377354547,INVOICE,BQZ
+15187,i want assistance to downlolad my bill #85632,get_invoice,check_invoice,0.564509135714408,INVOICE,BLQZ
+20961,help to inform of issues with signu,registration_problems,payment_issue,0.5381052662119591,ACCOUNT,BLMZ
+10444,openng {{Account Category}} account,create_account,delete_account,0.5007394777605977,ACCOUNT,BKLZ
+1939,i want help to swap several articles of order113542617735902,change_order,place_order,0.4868361472585486,ORDER,BLMQZ
+21376,need help to report problems with a registratoon,registration_problems,payment_issue,0.4806687483778135,ACCOUNT,BLMQZ
+866,i cannot poay for purchase {{Order Number}},cancel_order,change_order,0.4798119252108242,ORDER,BELNQZ
+15767,semd me bill #00108,get_invoice,check_invoice,0.4600556345590834,INVOICE,BKLZ
+21679,assistance opening user account,registration_problems,create_account,0.43076465566717304,ACCOUNT,BKL
+23894,use {{Account Category}} account,switch_account,delete_account,0.42324545609407027,ACCOUNT,BK
+15863,i do not know what i have to do to downloadthe bill #00108,get_invoice,check_invoice,0.41749087669827095,INVOICE,BELQZ
+8298,I am trying to talk with custojer service,contact_customer_service,contact_human_agent,0.3891129090425734,CONTACT,BLZ
+18276,i do not know what to do to report an issue withpayment,payment_issue,registration_problems,0.3641686584035145,PAYMENT,BEQZ
+1241,modify order370795561790,change_order,edit_account,0.3630339921643492,ORDER,BLZ
+1542,modify order732201349959,change_order,edit_account,0.3630339921643492,ORDER,BLZ
+14163,editing {{Account Type}} account,edit_account,create_account,0.3491954982583975,ACCOUNT,BKLZ
+1758,correct order370795561790,change_order,change_shipping_address,0.28669816451424934,ORDER,BKLZ
+26357,anything new on my goddamn reimbursement,track_refund,edit_account,0.24883700917009485,REFUND,BLW
+5067,i want assistance checking what paytment methods ya accept,check_payment_methods,delivery_options,0.23917675665113772,PAYMENT,BQZ
+10288,wanna ope a premium account could i get some help,create_account,edit_account,0.19144079268996553,ACCOUNT,BCILPQZ
+8500,I need help contacting customerservice,contact_customer_service,contact_human_agent,0.17358866830806607,CONTACT,BZ
+579,question about canceling a bloody purchase,cancel_order,delete_account,0.13194461187022813,ORDER,BLW
+17216,i want assistance canceling the newslettersubscription,newsletter_subscription,delete_account,0.1119586870294332,SUBSCRIPTION,BLQZ

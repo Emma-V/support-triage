@@ -1,0 +1,206 @@
+{
+  "schema": 1,
+  "name": "test_naive",
+  "timestamp_utc": "2026-08-31T13:28:15+00:00",
+  "config": {
+    "model": "qwen3+lora",
+    "role": "protocol",
+    "trained_on": "naive/train",
+    "scored_on": "naive/test",
+    "same_test_rows_as_headline": false,
+    "base_model": "Qwen/Qwen3-1.7B",
+    "adapter_run": "run_09_naive_r8",
+    "task_type": "SEQ_CLS",
+    "r": 8,
+    "lora_alpha": 16,
+    "precision": "bf16",
+    "max_length": 32,
+    "gpu_name": "NVIDIA L4",
+    "train_rows": 17187,
+    "eval_rows": 3684,
+    "split_seed": 42,
+    "subsample_seed": null,
+    "train_seed": 42
+  },
+  "metrics": {
+    "n_rows": 3684,
+    "n_labels": 27,
+    "accuracy": 0.9984,
+    "f1_macro": 0.9982,
+    "f1_weighted": 0.9984,
+    "per_class": {
+      "cancel_order": {
+        "precision": 0.9863,
+        "recall": 1.0,
+        "f1": 0.9931,
+        "support": 72
+      },
+      "change_order": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 129
+      },
+      "change_shipping_address": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 146
+      },
+      "check_cancellation_fee": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 142
+      },
+      "check_invoice": {
+        "precision": 0.9928,
+        "recall": 1.0,
+        "f1": 0.9964,
+        "support": 138
+      },
+      "check_payment_methods": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 150
+      },
+      "check_refund_policy": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 150
+      },
+      "complaint": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 150
+      },
+      "contact_customer_service": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 150
+      },
+      "contact_human_agent": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 150
+      },
+      "create_account": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 133
+      },
+      "delete_account": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 137
+      },
+      "delivery_options": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 98
+      },
+      "delivery_period": {
+        "precision": 0.9934,
+        "recall": 1.0,
+        "f1": 0.9967,
+        "support": 150
+      },
+      "edit_account": {
+        "precision": 0.9914,
+        "recall": 1.0,
+        "f1": 0.9957,
+        "support": 115
+      },
+      "get_invoice": {
+        "precision": 0.9926,
+        "recall": 0.9926,
+        "f1": 0.9926,
+        "support": 136
+      },
+      "get_refund": {
+        "precision": 0.9928,
+        "recall": 1.0,
+        "f1": 0.9964,
+        "support": 137
+      },
+      "newsletter_subscription": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 150
+      },
+      "payment_issue": {
+        "precision": 1.0,
+        "recall": 0.9867,
+        "f1": 0.9933,
+        "support": 150
+      },
+      "place_order": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 150
+      },
+      "recover_password": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 149
+      },
+      "registration_problems": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 150
+      },
+      "review": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 150
+      },
+      "set_up_shipping_address": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 150
+      },
+      "switch_account": {
+        "precision": 1.0,
+        "recall": 0.9921,
+        "f1": 0.996,
+        "support": 127
+      },
+      "track_order": {
+        "precision": 1.0,
+        "recall": 0.9833,
+        "f1": 0.9916,
+        "support": 120
+      },
+      "track_refund": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 105
+      }
+    }
+  },
+  "runtime_seconds": 13.09,
+  "library_versions": {
+    "python": "3.13.15",
+    "numpy": "2.1.3",
+    "pandas": "2.2.3",
+    "scikit-learn": "1.6.1",
+    "platform": "Linux"
+  },
+  "notes": "what this project would report under an ordinary random split, end to end, without the near-duplicate family control. Not a better or worse model: a different protocol's headline.",
+  "plan_sha256": "9b2d052a93beda9a"
+}

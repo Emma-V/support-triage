@@ -1,0 +1,69 @@
+{
+  "what": "the record that the held-out test set was opened, and of what was run in that session.",
+  "opened_at": "2026-08-31T13:43:23+00:00",
+  "opened_by": "notebooks/04_test.ipynb",
+  "plan_sha256": "9b2d052a93beda9a",
+  "plan": [
+    "majority",
+    "tfidf",
+    "zero_shot",
+    "clean",
+    "naive",
+    "naive_sub",
+    "naive_sub_on_clean"
+  ],
+  "freeze": {
+    "frozen_at": "2026-08-27T14:51:35+00:00",
+    "frozen_from_run": "run_04_lora_r8",
+    "chosen_r": 8
+  },
+  "test_files": {
+    "clean/test": {
+      "n_rows": 2120,
+      "sha256": "ea2a397c7d7eedcaee06d3e7cf13f179f5ac284fac720a3206ef776e253f2bb3"
+    },
+    "naive/test": {
+      "n_rows": 3684,
+      "sha256": "5376e626d70a1ade266e4b3e5e73d6e32c907fb2d885a72d90a0aaf9d9a8a4a7"
+    }
+  },
+  "results": {
+    "majority": {
+      "accuracy": 0.0575,
+      "f1_macro": 0.004,
+      "measured_on": "clean/test"
+    },
+    "tfidf": {
+      "accuracy": 0.9863,
+      "f1_macro": 0.9847,
+      "measured_on": "clean/test"
+    },
+    "clean": {
+      "accuracy": 0.9976,
+      "f1_macro": 0.9971,
+      "measured_on": "clean/test"
+    },
+    "naive": {
+      "accuracy": 0.9984,
+      "f1_macro": 0.9982,
+      "measured_on": "naive/test"
+    },
+    "naive_sub": {
+      "accuracy": 0.9973,
+      "f1_macro": 0.9971,
+      "measured_on": "naive/test"
+    },
+    "naive_sub_on_clean": {
+      "accuracy": 0.9972,
+      "f1_macro": 0.9971,
+      "measured_on": "clean/test"
+    },
+    "zero_shot": {
+      "accuracy": 0.5575,
+      "f1_macro": 0.537,
+      "measured_on": "clean/test"
+    }
+  },
+  "closed": "from here the test set is closed. Subsequent analysis reads the row-level prediction files in results/metrics/ and changes nothing.",
+  "reopenings": []
+}

@@ -1,0 +1,206 @@
+{
+  "schema": 1,
+  "name": "test_clean",
+  "timestamp_utc": "2026-08-31T13:28:01+00:00",
+  "config": {
+    "model": "qwen3+lora",
+    "role": "headline",
+    "trained_on": "clean/train",
+    "scored_on": "clean/test",
+    "same_test_rows_as_headline": true,
+    "base_model": "Qwen/Qwen3-1.7B",
+    "adapter_run": "run_04_lora_r8",
+    "task_type": "SEQ_CLS",
+    "r": 8,
+    "lora_alpha": 16,
+    "precision": "bf16",
+    "max_length": 32,
+    "gpu_name": "NVIDIA L4",
+    "train_rows": 9893,
+    "eval_rows": 2120,
+    "split_seed": 42,
+    "subsample_seed": null,
+    "train_seed": 42
+  },
+  "metrics": {
+    "n_rows": 2120,
+    "n_labels": 27,
+    "accuracy": 0.9976,
+    "f1_macro": 0.9971,
+    "f1_weighted": 0.9977,
+    "per_class": {
+      "cancel_order": {
+        "precision": 0.9677,
+        "recall": 1.0,
+        "f1": 0.9836,
+        "support": 30
+      },
+      "change_order": {
+        "precision": 1.0,
+        "recall": 0.987,
+        "f1": 0.9935,
+        "support": 77
+      },
+      "change_shipping_address": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 101
+      },
+      "check_cancellation_fee": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 77
+      },
+      "check_invoice": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 83
+      },
+      "check_payment_methods": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 74
+      },
+      "check_refund_policy": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 55
+      },
+      "complaint": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 82
+      },
+      "contact_customer_service": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 69
+      },
+      "contact_human_agent": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 90
+      },
+      "create_account": {
+        "precision": 0.9639,
+        "recall": 1.0,
+        "f1": 0.9816,
+        "support": 80
+      },
+      "delete_account": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 80
+      },
+      "delivery_options": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 64
+      },
+      "delivery_period": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 79
+      },
+      "edit_account": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 101
+      },
+      "get_invoice": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 55
+      },
+      "get_refund": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 95
+      },
+      "newsletter_subscription": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 50
+      },
+      "payment_issue": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 96
+      },
+      "place_order": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 122
+      },
+      "recover_password": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 119
+      },
+      "registration_problems": {
+        "precision": 1.0,
+        "recall": 0.9796,
+        "f1": 0.9897,
+        "support": 98
+      },
+      "review": {
+        "precision": 1.0,
+        "recall": 0.9911,
+        "f1": 0.9955,
+        "support": 112
+      },
+      "set_up_shipping_address": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 80
+      },
+      "switch_account": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 59
+      },
+      "track_order": {
+        "precision": 0.975,
+        "recall": 1.0,
+        "f1": 0.9873,
+        "support": 39
+      },
+      "track_refund": {
+        "precision": 1.0,
+        "recall": 0.9811,
+        "f1": 0.9905,
+        "support": 53
+      }
+    }
+  },
+  "runtime_seconds": 8.62,
+  "library_versions": {
+    "python": "3.13.15",
+    "numpy": "2.1.3",
+    "pandas": "2.2.3",
+    "scikit-learn": "1.6.1",
+    "platform": "Linux"
+  },
+  "notes": "the system's actual performance, on rows whose near-duplicate families were held out of training. This is the number the report leads with.",
+  "plan_sha256": "9b2d052a93beda9a"
+}

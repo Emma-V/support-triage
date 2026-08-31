@@ -1,0 +1,223 @@
+{
+  "schema": 1,
+  "name": "test_zero_shot_full",
+  "timestamp_utc": "2026-08-31T13:43:20+00:00",
+  "config": {
+    "model": "qwen3+label_scoring",
+    "base_model": "Qwen/Qwen3-1.7B",
+    "task_type": "label_scoring",
+    "label_level": "intent",
+    "train_rows": 0,
+    "eval_rows": 2120,
+    "trained_on": "-",
+    "scored_on": "clean/test",
+    "shots": 0,
+    "scoring_rule": "mean_logprob_per_token",
+    "prompt_sha256": "52aeea01fac575d7c59d60b413fd654951b8f319c1e0819210d9cdb9a08177c6",
+    "prompt_tokens": 165,
+    "decoding": "greedy (argmax over the 27 label scores)",
+    "max_length": null,
+    "precision": "bf16",
+    "gpu_name": "NVIDIA L4",
+    "split_seed": 42,
+    "subsample_seed": null,
+    "train_seed": null
+  },
+  "metrics": {
+    "n_rows": 2120,
+    "n_labels": 27,
+    "accuracy": 0.5575,
+    "f1_macro": 0.537,
+    "f1_weighted": 0.5333,
+    "per_class": {
+      "cancel_order": {
+        "precision": 0.5641,
+        "recall": 0.7333,
+        "f1": 0.6377,
+        "support": 30
+      },
+      "change_order": {
+        "precision": 1.0,
+        "recall": 0.2468,
+        "f1": 0.3958,
+        "support": 77
+      },
+      "change_shipping_address": {
+        "precision": 0.6765,
+        "recall": 0.4554,
+        "f1": 0.5444,
+        "support": 101
+      },
+      "check_cancellation_fee": {
+        "precision": 0.8286,
+        "recall": 0.7532,
+        "f1": 0.7891,
+        "support": 77
+      },
+      "check_invoice": {
+        "precision": 0.5882,
+        "recall": 0.1205,
+        "f1": 0.2,
+        "support": 83
+      },
+      "check_payment_methods": {
+        "precision": 0.4118,
+        "recall": 0.0946,
+        "f1": 0.1538,
+        "support": 74
+      },
+      "check_refund_policy": {
+        "precision": 0.7826,
+        "recall": 0.3273,
+        "f1": 0.4615,
+        "support": 55
+      },
+      "complaint": {
+        "precision": 0.3462,
+        "recall": 0.9878,
+        "f1": 0.5127,
+        "support": 82
+      },
+      "contact_customer_service": {
+        "precision": 0.7188,
+        "recall": 0.6667,
+        "f1": 0.6917,
+        "support": 69
+      },
+      "contact_human_agent": {
+        "precision": 0.7416,
+        "recall": 0.7333,
+        "f1": 0.7374,
+        "support": 90
+      },
+      "create_account": {
+        "precision": 0.9286,
+        "recall": 0.1625,
+        "f1": 0.2766,
+        "support": 80
+      },
+      "delete_account": {
+        "precision": 0.7692,
+        "recall": 0.25,
+        "f1": 0.3774,
+        "support": 80
+      },
+      "delivery_options": {
+        "precision": 0.9839,
+        "recall": 0.9531,
+        "f1": 0.9683,
+        "support": 64
+      },
+      "delivery_period": {
+        "precision": 0.8939,
+        "recall": 0.7468,
+        "f1": 0.8138,
+        "support": 79
+      },
+      "edit_account": {
+        "precision": 0.8148,
+        "recall": 0.4356,
+        "f1": 0.5677,
+        "support": 101
+      },
+      "get_invoice": {
+        "precision": 0.4083,
+        "recall": 0.8909,
+        "f1": 0.56,
+        "support": 55
+      },
+      "get_refund": {
+        "precision": 0.475,
+        "recall": 0.6,
+        "f1": 0.5302,
+        "support": 95
+      },
+      "newsletter_subscription": {
+        "precision": 0.9778,
+        "recall": 0.88,
+        "f1": 0.9263,
+        "support": 50
+      },
+      "payment_issue": {
+        "precision": 0.5314,
+        "recall": 0.9688,
+        "f1": 0.6863,
+        "support": 96
+      },
+      "place_order": {
+        "precision": 0.8214,
+        "recall": 0.377,
+        "f1": 0.5169,
+        "support": 122
+      },
+      "recover_password": {
+        "precision": 0.8704,
+        "recall": 0.395,
+        "f1": 0.5434,
+        "support": 119
+      },
+      "registration_problems": {
+        "precision": 0.3942,
+        "recall": 0.9694,
+        "f1": 0.5605,
+        "support": 98
+      },
+      "review": {
+        "precision": 0.3588,
+        "recall": 0.5446,
+        "f1": 0.4326,
+        "support": 112
+      },
+      "set_up_shipping_address": {
+        "precision": 0.4345,
+        "recall": 0.7875,
+        "f1": 0.56,
+        "support": 80
+      },
+      "switch_account": {
+        "precision": 0.5909,
+        "recall": 0.2203,
+        "f1": 0.321,
+        "support": 59
+      },
+      "track_order": {
+        "precision": 0.3654,
+        "recall": 0.9744,
+        "f1": 0.5315,
+        "support": 39
+      },
+      "track_refund": {
+        "precision": 1.0,
+        "recall": 0.1132,
+        "f1": 0.2034,
+        "support": 53
+      }
+    }
+  },
+  "runtime_seconds": 875.15,
+  "library_versions": {
+    "python": "3.13.15",
+    "numpy": "2.1.3",
+    "pandas": "2.2.3",
+    "scikit-learn": "1.6.1",
+    "platform": "Linux",
+    "torch": "2.11.0+cu128",
+    "transformers": "5.14.1",
+    "peft": "0.20.0",
+    "cuda": "12.8",
+    "gpu_name": "NVIDIA L4",
+    "compute_capability": "8.9",
+    "total_memory_gb": 23.7,
+    "bf16_supported": true,
+    "device": "cuda",
+    "precision": "bf16",
+    "precision_reason": "bf16 supported by this GPU - preferred, no loss scaling needed"
+  },
+  "notes": "untrained Qwen3-1.7B, label scoring, no demonstrations - the 'before' on the same test rows as the fine-tuned model",
+  "alternative_scoring": {
+    "rule": "sum_logprob",
+    "accuracy": 0.5608,
+    "f1_macro": 0.5408
+  },
+  "n_distinct_predictions": 27
+}

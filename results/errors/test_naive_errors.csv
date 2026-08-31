@@ -1,0 +1,7 @@
+row_id,instruction,intent,predicted,confidence,category,flags
+18362,payment help,payment_issue,get_refund,0.9876692151157428,PAYMENT,BK
+15729,gedtting bill from {{Person Name}},get_invoice,check_invoice,0.9609699290762242,INVOICE,BKLZ
+25009,how can i tfack purchase {{Order Number}},track_order,cancel_order,0.8578080117945491,ORDER,BILQZ
+25589,i have to see the damn ETA of my delivery helpme,track_order,delivery_period,0.7176277625363835,ORDER,BCLQWZ
+24504,I am trying to change user,switch_account,edit_account,0.6879814488961556,ACCOUNT,BL
+18620,i get an error when i try to make a transfer report it,payment_issue,get_invoice,0.6641982462784342,PAYMENT,BCLQ

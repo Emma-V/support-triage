@@ -1,0 +1,11 @@
+row_id,instruction,intent,predicted,confidence,category,flags
+20976,I have a question about opening user profiles,registration_problems,create_account,0.9823645876694574,ACCOUNT,BLM
+21558,question about opening user profiles,registration_problems,create_account,0.9662170222663051,ACCOUNT,BLM
+18362,payment help,payment_issue,get_refund,0.9634613271492742,PAYMENT,BK
+3390,I have to see the withdrawal efe,check_cancellation_fee,track_refund,0.9533334489914701,CANCEL,BLZ
+6604,are the service charges refundable?,check_refund_policy,check_cancellation_fee,0.9255636246843965,REFUND,BI
+15729,gedtting bill from {{Person Name}},get_invoice,check_invoice,0.8910268626596934,INVOICE,BKLZ
+1443,could you help me to delete something?,change_order,delete_account,0.8189504583182791,ORDER,BILP
+25009,how can i tfack purchase {{Order Number}},track_order,cancel_order,0.5966096809887557,ORDER,BILQZ
+21229,report issues creating account,registration_problems,create_account,0.4948858925583166,ACCOUNT,BKM
+1787,order change,change_order,edit_account,0.39541674261368714,ORDER,BK
