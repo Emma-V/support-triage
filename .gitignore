@@ -123,6 +123,10 @@ artifacts/*
 # the pre-registered rule that chose it, which is the difference between a decision
 # and three numbers, so it belongs in git for the same reason the other two do.
 !artifacts/config_freeze.json
+# The seal file is a fourth one, and for the same reason: it's tiny, and it
+# records the frozen-config hash that 04_test checks itself against. If it's
+# not in the repo, there is no committed proof of what was actually tested.
+!artifacts/test_seal.json
 *.pkl
 *.pickle
 *.joblib
